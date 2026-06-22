@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cotizador_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_password
+      POSTGRES_DB: cotizador_crm_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d cotizador_crm_pro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cotizador_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://crm_user:crm_password@postgres:5432/cotizador_crm_pro?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-cambia-este-secreto-access-en-produccion}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-cambia-este-secreto-refresh-en-produccion}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_PATH: ./uploads
+      PUBLIC_FILES_BASE_URL: ${PUBLIC_FILES_BASE_URL:-http://localhost:4000/uploads}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Cotizador CRM Pro <no-reply@example.com>}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    ports:
+      - "4000:4000"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api/v1}
+    container_name: cotizador_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  backend_uploads:

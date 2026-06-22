@@ -1,0 +1,474 @@
+// ======================================================================
+// COTIZADOR CRM PRO - Prisma Schema
+// Arquitectura multi-tenant: cada Organization es un tenant aislado.
+// Todas las entidades de negocio cuelgan de organizationId.
+// ======================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ======================================================================
+// ENUMS
+// ======================================================================
+
+enum Role {
+  ADMIN
+  VENDEDOR
+  OPERADOR
+}
+
+enum LeadSource {
+  FACEBOOK
+  MARKETPLACE
+  INSTAGRAM
+  GOOGLE
+  WHATSAPP
+  REFERIDO
+  OTRO
+}
+
+enum ClientStatus {
+  NUEVO
+  COTIZADO
+  EN_NEGOCIACION
+  PENDIENTE_DOCUMENTOS
+  TRABAJO_CONTRATADO
+  TRABAJO_TERMINADO
+  CLIENTE_PERDIDO
+}
+
+enum QuoteStatus {
+  BORRADOR
+  ENVIADA
+  ACEPTADA
+  RECHAZADA
+  VENCIDA
+}
+
+enum ActivityType {
+  LLAMADA
+  WHATSAPP
+  CORREO
+  REUNION
+  VISITA_TECNICA
+}
+
+enum ActivityResult {
+  POSITIVO
+  NEUTRO
+  NEGATIVO
+  SIN_RESPUESTA
+}
+
+enum ReminderStatus {
+  PENDIENTE
+  COMPLETADO
+  CANCELADO
+}
+
+enum NotificationType {
+  CLIENTE_SIN_SEGUIMIENTO
+  COTIZACION_POR_VENCER
+  RECORDATORIO
+  NUEVO_CLIENTE
+  SISTEMA
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+// ======================================================================
+// PLANES Y SUSCRIPCIONES (SaaS billing)
+// ======================================================================
+
+model Plan {
+  id            String   @id @default(cuid())
+  code          String   @unique // "FREE", "PRO", "BUSINESS"
+  name          String
+  description   String?
+  priceMonthly  Decimal  @db.Decimal(10, 2)
+  priceYearly   Decimal  @db.Decimal(10, 2)
+  maxUsers      Int // -1 = ilimitado
+  maxClients    Int
+  maxQuotesMo   Int // cotizaciones por mes
+  maxStorageMb  Int
+  features      Json // { ai: true, customBranding: true, ... }
+  isActive      Boolean  @default(true)
+  isPublic      Boolean  @default(true) // visible para nuevas suscripciones
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  organizationId     String             @unique
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(TRIAL)
+  billingCycle       BillingCycle       @default(MONTHLY)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  canceledAt         DateTime?
+  externalCustomerId String? // id del gateway de pago (ej. Stripe customer id)
+  externalSubId      String? // id de suscripción en el gateway
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  invoices Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount         Decimal      @db.Decimal(10, 2)
+  currency       String       @default("CLP")
+  status         String       @default("pending") // pending, paid, failed
+  externalRef    String? // id de pago externo
+  issuedAt       DateTime     @default(now())
+  paidAt         DateTime?
+
+  @@map("invoices")
+}
+
+// ======================================================================
+// ORGANIZACIÓN (TENANT) E IDENTIDAD CORPORATIVA
+// ======================================================================
+
+model Organization {
+  id               String   @id @default(cuid())
+  name             String // Nombre comercial / empresa
+  slug             String   @unique // usado en URLs, subdominios futuros
+  onboardingDone   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relaciones
+  users         User[]
+  branding      Branding?
+  clients       Client[]
+  services      Service[]
+  quotes        Quote[]
+  activities    Activity[]
+  reminders     Reminder[]
+  notifications Notification[]
+  subscription  Subscription?
+  quoteCounter  QuoteCounter?
+
+  @@map("organizations")
+}
+
+// Identidad corporativa: logo, firma, colores, datos de contacto
+model Branding {
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  responsibleName  String? // Nombre responsable
+  jobTitle         String? // Cargo o profesión
+  phone            String?
+  email            String?
+  website          String?
+  address          String?
+
+  logoUrl          String?
+  signatureType    String?  @default("none") // "upload" | "drawn" | "none"
+  signatureUrl     String?
+
+  primaryColor     String?  @default("#FACC15") // amarillo por defecto
+  secondaryColor   String?  @default("#111827") // negro/grafito por defecto
+
+  useLogoOnQuotes      Boolean @default(true)
+  useLogoOnReports     Boolean @default(true)
+  useSignatureOnQuotes Boolean @default(true)
+  useSignatureOnReports Boolean @default(false)
+
+  currency         String   @default("CLP")
+  quotePrefix      String   @default("COT")
+  pdfFooterNote    String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("brandings")
+}
+
+// Contador correlativo de cotizaciones por organización
+model QuoteCounter {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lastNumber     Int          @default(0)
+
+  @@map("quote_counters")
+}
+
+// ======================================================================
+// USUARIOS Y AUTENTICACIÓN
+// ======================================================================
+
+model User {
+  id               String    @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  fullName         String
+  email            String    @unique
+  passwordHash     String
+  role             Role      @default(VENDEDOR)
+  isActive         Boolean   @default(true)
+  emailVerifiedAt  DateTime?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  refreshTokens       RefreshToken[]
+  emailVerifications  EmailVerificationToken[]
+  passwordResets       PasswordResetToken[]
+  activities           Activity[]
+  reminders            Reminder[]
+  quotesCreated        Quote[]            @relation("QuoteCreatedBy")
+  notifications        Notification[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// ======================================================================
+// CLIENTES
+// ======================================================================
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  fullName       String
+  phone          String?
+  email          String?
+  address        String?
+  comuna         String?
+  city           String?
+  source         LeadSource   @default(OTRO)
+  status         ClientStatus @default(NUEVO)
+  notes          String?
+
+  registeredAt   DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  quotes         Quote[]
+  activities     Activity[]
+  reminders      Reminder[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("clients")
+}
+
+// ======================================================================
+// CATÁLOGO DE SERVICIOS
+// ======================================================================
+
+model Service {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name           String
+  description    String?
+  basePrice      Decimal      @db.Decimal(12, 2)
+  estimatedDays  Int?
+  isActive       Boolean      @default(true)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  quotes         Quote[]
+
+  @@index([organizationId])
+  @@map("services")
+}
+
+// ======================================================================
+// COTIZACIONES
+// ======================================================================
+
+model Quote {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  number         Int // correlativo, único por organización (no global)
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  service        Service?     @relation(fields: [serviceId], references: [id])
+
+  description    String
+  basePrice       Decimal      @db.Decimal(12, 2)
+  discount        Decimal      @db.Decimal(12, 2) @default(0)
+  finalPrice      Decimal      @db.Decimal(12, 2)
+  paymentTerms    String?
+  validUntil      DateTime?
+  status          QuoteStatus  @default(BORRADOR)
+
+  pdfUrl          String?
+  generatedByAi   Boolean      @default(false)
+
+  createdById     String?
+  createdBy       User?        @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  activities      Activity[]
+  reminders       Reminder[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("quotes")
+}
+
+// ======================================================================
+// ACTIVIDADES (CRM seguimiento)
+// ======================================================================
+
+model Activity {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  clientId       String
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quoteId        String?
+  quote          Quote?         @relation(fields: [quoteId], references: [id])
+  userId         String?
+  user           User?          @relation(fields: [userId], references: [id])
+
+  type           ActivityType
+  occurredAt     DateTime       @default(now())
+  comment        String?
+  result         ActivityResult?
+
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@map("activities")
+}
+
+// ======================================================================
+// RECORDATORIOS
+// ======================================================================
+
+model Reminder {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  clientId       String?
+  client         Client?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quoteId        String?
+  quote          Quote?         @relation(fields: [quoteId], references: [id])
+  userId         String?
+  user           User?          @relation(fields: [userId], references: [id])
+
+  title          String
+  notes          String?
+  dueAt          DateTime
+  status         ReminderStatus @default(PENDIENTE)
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, status, dueAt])
+  @@map("reminders")
+}
+
+// ======================================================================
+// NOTIFICACIONES
+// ======================================================================
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?            @relation(fields: [userId], references: [id])
+
+  type           NotificationType
+  title          String
+  message        String
+  link           String?
+  readAt         DateTime?
+
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
