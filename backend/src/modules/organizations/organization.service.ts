@@ -103,4 +103,30 @@ export class OrganizationService {
   static async updateBranding(organizationId: string, data: Record<string, unknown>) {
     return prisma.branding.update({ where: { organizationId }, data });
   }
+
+  /**
+   * Ajusta el contador de cotizaciones para que la PRÓXIMA cotización que se
+   * cree use el número indicado. Por ejemplo, si la empresa ya tenía
+   * cotizaciones manuales hasta la #1000, se pasa startAt=1001 para que la
+   * numeración continúe de forma creíble en vez de reiniciar desde 1.
+   * Solo se permite si la organización aún no tiene cotizaciones creadas
+   * dentro del sistema, para evitar saltos o colisiones de numeración.
+   */
+  static async setQuoteStartingNumber(organizationId: string, startAt: number) {
+    if (startAt < 1) {
+      throw AppError.badRequest('El número inicial debe ser mayor o igual a 1.');
+    }
+
+    const existingQuotesCount = await prisma.quote.count({ where: { organizationId } });
+    if (existingQuotesCount > 0) {
+      throw AppError.badRequest(
+        'Ya existen cotizaciones creadas en el sistema. El número inicial solo puede ajustarse antes de crear la primera cotización.'
+      );
+    }
+
+    return prisma.quoteCounter.update({
+      where: { organizationId },
+      data: { lastNumber: startAt - 1 }, // la siguiente cotización incrementará esto en 1
+    });
+  }
 }

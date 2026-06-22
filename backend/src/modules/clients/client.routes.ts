@@ -11,6 +11,11 @@ function requireOrgId(req: Request): string {
 }
 
 export const ClientController = {
+  listAllLight: asyncHandler(async (req: Request, res: Response) => {
+    const clients = await ClientService.listAllLight(requireOrgId(req));
+    res.json(clients);
+  }),
+
   list: asyncHandler(async (req: Request, res: Response) => {
     const query = listClientsQuerySchema.parse(req.query);
     const result = await ClientService.list(requireOrgId(req), query);
@@ -43,6 +48,7 @@ export const ClientController = {
 const router = Router();
 router.use(authenticate);
 
+router.get('/all-light', ClientController.listAllLight);
 router.get('/', ClientController.list);
 router.get('/:id', ClientController.getById);
 router.post('/', ClientController.create);

@@ -1,6 +1,7 @@
 import { api } from '@/lib/api-client';
 
 export const clientsApi = {
+  listAllLight: () => api.get('/clients/all-light').then((r) => r.data),
   list: (params: Record<string, unknown>) => api.get('/clients', { params }).then((r) => r.data),
   getById: (id: string) => api.get(`/clients/${id}`).then((r) => r.data),
   create: (data: Record<string, unknown>) => api.post('/clients', data).then((r) => r.data),

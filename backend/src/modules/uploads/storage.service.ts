@@ -66,6 +66,10 @@ export class StorageService {
       resource_type: isPdf ? 'raw' : 'image',
       use_filename: true,
       unique_filename: true,
+      // Para archivos raw (PDFs), Cloudinary no agrega extensión a la URL
+      // por defecto, lo que hace que el navegador/celular no sepa qué tipo
+      // de archivo es al descargarlo. Forzamos "format: pdf" para que la
+      // URL pública termine en ".pdf" y se abra/descargue correctamente.
       ...(isPdf ? { format: 'pdf' } : {}),
     });
 

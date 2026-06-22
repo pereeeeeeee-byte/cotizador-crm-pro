@@ -45,5 +45,8 @@ export const organizationApi = {
 
   finishOnboarding: () => api.post('/organizations/onboarding/finish').then((r) => r.data),
 
+  setQuoteStartingNumber: (startAt: number) =>
+    api.post('/organizations/quote-starting-number', { startAt }).then((r) => r.data),
+
   updateBranding: (data: Record<string, unknown>) => api.patch('/organizations/branding', data).then((r) => r.data),
 };

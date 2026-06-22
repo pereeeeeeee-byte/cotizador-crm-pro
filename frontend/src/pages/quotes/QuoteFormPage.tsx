@@ -6,6 +6,7 @@ import { Sparkles, ArrowLeft } from 'lucide-react';
 import { clientsApi, servicesApi, quotesApi, aiApi } from '@/api/resources.api';
 import { Client, Service } from '@/types';
 import { Spinner } from '@/components/ui/Spinner';
+import { ClientSearchSelect } from '@/components/ui/ClientSearchSelect';
 
 export default function QuoteFormPage() {
   const navigate = useNavigate();
@@ -28,11 +29,10 @@ export default function QuoteFormPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  const { data: clientsData } = useQuery({
-    queryKey: ['clients-all'],
-    queryFn: () => clientsApi.list({ pageSize: 100 }),
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ['clients-all-light'],
+    queryFn: clientsApi.listAllLight,
   });
-  const clients: Client[] = clientsData?.items ?? [];
 
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ['services'],
@@ -122,14 +122,7 @@ export default function QuoteFormPage() {
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
           <label className="label-field">Cliente *</label>
-          <select className="input-field" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
-            <option value="">Selecciona un cliente</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.fullName}
-              </option>
-            ))}
-          </select>
+          <ClientSearchSelect clients={clients} value={form.clientId} onChange={(clientId) => setForm({ ...form, clientId })} />
         </div>
 
         <div>

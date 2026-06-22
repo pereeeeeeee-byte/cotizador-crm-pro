@@ -12,6 +12,20 @@ interface ListClientsParams {
 }
 
 export class ClientService {
+  /**
+   * Listado liviano (solo campos necesarios para mostrar en un buscador/
+   * selector) de TODOS los clientes de la organización, sin paginar. Usado
+   * por el formulario de cotización para alimentar el autocompletado por
+   * escritura sin traer notas, direcciones ni conteos innecesarios.
+   */
+  static async listAllLight(organizationId: string) {
+    return prisma.client.findMany({
+      where: { organizationId },
+      select: { id: true, fullName: true, phone: true, email: true, status: true },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
   static async list(organizationId: string, params: ListClientsParams) {
     const where: Prisma.ClientWhereInput = { organizationId };
 

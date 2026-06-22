@@ -38,3 +38,7 @@ export const updateBrandingSchema = z.object({
 export const signatureTypeSchema = z.object({
   signatureType: z.enum(['upload', 'drawn', 'none']),
 });
+
+export const setQuoteStartingNumberSchema = z.object({
+  startAt: z.coerce.number().int().min(1).max(999999999),
+});

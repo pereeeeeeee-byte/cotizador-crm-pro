@@ -26,4 +26,7 @@ router.post('/onboarding/finish', requireRole('ADMIN'), OrganizationController.f
 // Edición de branding post-onboarding
 router.patch('/branding', requireRole('ADMIN'), OrganizationController.updateBranding);
 
+// Numeración de cotizaciones
+router.post('/quote-starting-number', requireRole('ADMIN'), OrganizationController.setQuoteStartingNumber);
+
 export default router;

@@ -5,6 +5,7 @@ import {
   onboardingStep1Schema,
   onboardingStep4Schema,
   updateBrandingSchema,
+  setQuoteStartingNumberSchema,
 } from './organization.schemas';
 import { OrganizationService } from './organization.service';
 
@@ -72,5 +73,11 @@ export const OrganizationController = {
     const data = updateBrandingSchema.parse(req.body);
     const branding = await OrganizationService.updateBranding(requireOrgId(req), data);
     res.json(branding);
+  }),
+
+  setQuoteStartingNumber: asyncHandler(async (req: Request, res: Response) => {
+    const { startAt } = setQuoteStartingNumberSchema.parse(req.body);
+    const counter = await OrganizationService.setQuoteStartingNumber(requireOrgId(req), startAt);
+    res.json(counter);
   }),
 };
