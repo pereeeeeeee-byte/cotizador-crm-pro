@@ -66,6 +66,7 @@ export class StorageService {
       resource_type: isPdf ? 'raw' : 'image',
       use_filename: true,
       unique_filename: true,
+      ...(isPdf ? { format: 'pdf' } : {}),
     });
 
     return result.secure_url;
