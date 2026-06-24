@@ -26,6 +26,14 @@ import aiRoutes from '@/modules/ai/ai.routes';
 
 export const app = express();
 
+// Railway (y la mayoría de plataformas cloud) coloca la app detrás de un
+// único proxy/balanceador que agrega el header X-Forwarded-For. Sin esta
+// línea, express-rate-limit rechaza todas las peticiones por seguridad
+// (no puede confiar en ese header sin que se le diga explícitamente que
+// hay exactamente 1 proxy delante). El valor "1" es más seguro que "true":
+// solo confía en un salto de proxy, no en una cadena arbitraria.
+app.set('trust proxy', 1);
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: env.frontendUrl, credentials: true }));
 app.use(compression());
