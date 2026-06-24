@@ -190,6 +190,7 @@ model Branding {
 
   responsibleName  String? // Nombre responsable
   jobTitle         String? // Cargo o profesión
+  rut              String? // RUT del profesional/empresa, mostrado bajo la firma en el PDF
   phone            String?
   email            String?
   website          String?

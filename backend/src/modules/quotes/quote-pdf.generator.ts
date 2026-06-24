@@ -7,6 +7,7 @@ interface QuotePdfData {
   organizationName: string;
   responsibleName?: string | null;
   jobTitle?: string | null;
+  rut?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
   primaryColorHex?: string | null;
@@ -58,11 +59,20 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   const dark = rgb(0.1, 0.1, 0.12);
   const gray = rgb(0.45, 0.45, 0.48);
 
-  let cursorY = height - 50;
+  let cursorY = height - 55;
 
   // --- Encabezado: franja de color + logo ---
   page.drawRectangle({ x: 0, y: height - 12, width, height: 12, color: rgb(accent.r, accent.g, accent.b) });
 
+  // El logo se dibuja a un tamaño considerablemente mayor para que tenga
+  // presencia visual fuerte en el encabezado (antes 110x60, ahora hasta
+  // 160x95), reservando una franja de cabecera más alta para que no se
+  // empalme con el texto de la empresa.
+  const HEADER_LOGO_MAX_W = 160;
+  const HEADER_LOGO_MAX_H = 95;
+  const HEADER_TEXT_X = 225; // se corre a la derecha para no chocar con el logo más ancho
+
+  let logoHeight = 0;
   if (data.logoBuffer) {
     try {
       let image;
@@ -71,22 +81,26 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
       } catch {
         image = await pdfDoc.embedJpg(data.logoBuffer);
       }
-      const maxW = 110;
-      const maxH = 60;
-      const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+      const scale = Math.min(HEADER_LOGO_MAX_W / image.width, HEADER_LOGO_MAX_H / image.height, 1);
       const w = image.width * scale;
       const h = image.height * scale;
-      page.drawImage(image, { x: 50, y: cursorY - h + 20, width: w, height: h });
+      logoHeight = h;
+      page.drawImage(image, { x: 45, y: height - 30 - h, width: w, height: h });
     } catch {
       // Si el logo no se puede decodificar, simplemente se omite sin romper el PDF.
     }
   }
 
-  page.drawText(data.organizationName, { x: 180, y: cursorY, size: 16, font: fontBold, color: dark });
+  // El bloque de texto del header se centra verticalmente respecto a la
+  // altura real del logo (o usa una posición por defecto si no hay logo).
+  const headerTextStartY = logoHeight > 0 ? height - 45 - logoHeight / 2 + 18 : cursorY;
+  cursorY = headerTextStartY;
+
+  page.drawText(data.organizationName, { x: HEADER_TEXT_X, y: cursorY, size: 16, font: fontBold, color: dark });
   cursorY -= 18;
   if (data.responsibleName) {
     page.drawText(`${data.responsibleName}${data.jobTitle ? ' · ' + data.jobTitle : ''}`, {
-      x: 180,
+      x: HEADER_TEXT_X,
       y: cursorY,
       size: 10,
       font: fontRegular,
@@ -96,10 +110,10 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   }
   const contactLine = [data.contactPhone, data.contactEmail].filter(Boolean).join('  ·  ');
   if (contactLine) {
-    page.drawText(contactLine, { x: 180, y: cursorY, size: 10, font: fontRegular, color: gray });
+    page.drawText(contactLine, { x: HEADER_TEXT_X, y: cursorY, size: 10, font: fontRegular, color: gray });
   }
 
-  cursorY = height - 130;
+  cursorY = height - Math.max(140, 50 + logoHeight + 20);
   page.drawLine({ start: { x: 50, y: cursorY }, end: { x: width - 50, y: cursorY }, thickness: 1, color: gray });
   cursorY -= 30;
 
@@ -204,6 +218,12 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   }
 
   // --- Firma ---
+  // El bloque de identidad (nombre, profesión, RUT) se muestra siempre que
+  // haya datos del responsable, independiente de si existe una imagen de
+  // firma dibujada/subida. La imagen de firma, cuando existe, se dibuja
+  // encima de ese bloque de texto.
+  const sigY = 110;
+
   if (data.useSignature && data.signatureBuffer) {
     try {
       let sigImage;
@@ -217,18 +237,32 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
       const scale = Math.min(sigMaxW / sigImage.width, sigMaxH / sigImage.height, 1);
       const w = sigImage.width * scale;
       const h = sigImage.height * scale;
-      const sigY = 110;
       page.drawImage(sigImage, { x: 50, y: sigY, width: w, height: h });
-      page.drawLine({ start: { x: 50, y: sigY - 5 }, end: { x: 220, y: sigY - 5 }, thickness: 0.5, color: gray });
-      page.drawText(data.responsibleName ?? data.organizationName, {
-        x: 50,
-        y: sigY - 18,
-        size: 9,
-        font: fontRegular,
-        color: gray,
-      });
     } catch {
       // Si la firma no se puede decodificar, se omite sin romper el PDF.
+    }
+  }
+
+  if (data.responsibleName || data.organizationName) {
+    page.drawLine({ start: { x: 50, y: sigY - 5 }, end: { x: 220, y: sigY - 5 }, thickness: 0.5, color: gray });
+
+    let signatureLineY = sigY - 18;
+    page.drawText(data.responsibleName ?? data.organizationName, {
+      x: 50,
+      y: signatureLineY,
+      size: 9,
+      font: fontBold,
+      color: dark,
+    });
+
+    if (data.jobTitle) {
+      signatureLineY -= 13;
+      page.drawText(data.jobTitle, { x: 50, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
+    }
+
+    if (data.rut) {
+      signatureLineY -= 13;
+      page.drawText(`RUT: ${data.rut}`, { x: 50, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
     }
   }
 

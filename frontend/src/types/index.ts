@@ -32,6 +32,7 @@ export interface Branding {
   organizationId: string;
   responsibleName?: string | null;
   jobTitle?: string | null;
+  rut?: string | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;

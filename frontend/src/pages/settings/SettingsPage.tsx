@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     responsibleName: branding?.responsibleName ?? '',
     jobTitle: branding?.jobTitle ?? '',
+    rut: branding?.rut ?? '',
     phone: branding?.phone ?? '',
     email: branding?.email ?? '',
     address: branding?.address ?? '',
@@ -59,6 +60,10 @@ export default function SettingsPage() {
           <div>
             <label className="label-field">Cargo</label>
             <input className="input-field" value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} />
+          </div>
+          <div>
+            <label className="label-field">RUT (aparece bajo tu firma en el PDF)</label>
+            <input className="input-field" placeholder="12.345.678-9" value={form.rut} onChange={(e) => setForm({ ...form, rut: e.target.value })} />
           </div>
           <div>
             <label className="label-field">Teléfono</label>

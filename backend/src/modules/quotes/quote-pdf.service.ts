@@ -60,6 +60,7 @@ export class QuotePdfService {
       organizationName: organization.name,
       responsibleName: branding?.responsibleName,
       jobTitle: branding?.jobTitle,
+      rut: branding?.rut,
       contactPhone: branding?.phone,
       contactEmail: branding?.email,
       primaryColorHex: branding?.primaryColor,

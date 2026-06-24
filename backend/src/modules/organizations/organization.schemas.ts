@@ -20,6 +20,7 @@ export const onboardingStep4Schema = z.object({
 export const updateBrandingSchema = z.object({
   responsibleName: z.string().max(120).optional(),
   jobTitle: z.string().max(120).optional(),
+  rut: z.string().max(20).optional(),
   phone: z.string().max(40).optional(),
   email: z.string().email().optional(),
   website: z.string().url().optional().or(z.literal('')),
