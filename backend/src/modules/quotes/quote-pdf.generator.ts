@@ -222,7 +222,15 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   // haya datos del responsable, independiente de si existe una imagen de
   // firma dibujada/subida. La imagen de firma, cuando existe, se dibuja
   // encima de ese bloque de texto.
-  const sigY = 110;
+  //
+  // sigY se calcula como un valor fijo "ideal" (150pt desde abajo, que deja
+  // espacio para las hasta 3 líneas de texto sin chocar con el footer en
+  // y=70), pero si el contenido anterior (descripción larga, muchas líneas
+  // de forma de pago) ya empujó el cursor por debajo de ese punto, usamos
+  // el cursor real menos un margen, para evitar que la firma se superponga
+  // con el contenido de arriba.
+  const SIGNATURE_IDEAL_Y = 150;
+  const sigY = Math.min(SIGNATURE_IDEAL_Y, cursorY - 20);
 
   if (data.useSignature && data.signatureBuffer) {
     try {
