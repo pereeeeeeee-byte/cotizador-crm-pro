@@ -55,4 +55,16 @@ export const QuoteController = {
     const url = await QuotePdfService.generateAndStore(auth.organizationId, req.params.id);
     res.json({ pdfUrl: url });
   }),
+
+  toggleInstallmentPaid: asyncHandler(async (req: Request, res: Response) => {
+    const auth = requireAuth(req);
+    const { isPaid } = req.body as { isPaid: boolean };
+    const installment = await QuoteService.toggleInstallmentPaid(
+      auth.organizationId,
+      req.params.id,
+      req.params.installmentId,
+      Boolean(isPaid)
+    );
+    res.json(installment);
+  }),
 };

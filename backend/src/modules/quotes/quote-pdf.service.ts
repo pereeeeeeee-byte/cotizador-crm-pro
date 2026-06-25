@@ -2,6 +2,8 @@ import { prisma } from '@/config/prisma';
 import { AppError } from '@/common/AppError';
 import { generateQuotePdf } from './quote-pdf.generator';
 import { StorageService } from '@/modules/uploads/storage.service';
+import { resolveInstallmentAmount } from './quote-calculations';
+import type { QuoteItem, QuoteInstallment } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import { env } from '@/config/env';
@@ -41,7 +43,12 @@ export class QuotePdfService {
   static async generateAndStore(organizationId: string, quoteId: string): Promise<string> {
     const quote = await prisma.quote.findFirst({
       where: { id: quoteId, organizationId },
-      include: { client: true, service: true },
+      include: {
+        client: true,
+        service: true,
+        items: { orderBy: { sortOrder: 'asc' } },
+        installments: { orderBy: { sortOrder: 'asc' } },
+      },
     });
     if (!quote) throw AppError.notFound('Cotización no encontrada.');
 
@@ -52,6 +59,8 @@ export class QuotePdfService {
     const logoBuffer = await resolveImageBuffer(branding?.logoUrl);
     const useSignature = Boolean(branding?.useSignatureOnQuotes && branding?.signatureType !== 'none');
     const signatureBuffer = useSignature ? await resolveImageBuffer(branding?.signatureUrl) : null;
+
+    const finalPrice = Number(quote.finalPrice);
 
     const pdfBytes = await generateQuotePdf({
       quoteNumber: quote.number,
@@ -74,11 +83,38 @@ export class QuotePdfService {
       description: quote.description,
       basePrice: Number(quote.basePrice),
       discount: Number(quote.discount),
-      finalPrice: Number(quote.finalPrice),
+      finalPrice,
       paymentTerms: quote.paymentTerms,
       validUntil: quote.validUntil,
       currency: branding?.currency ?? 'CLP',
       footerNote: branding?.pdfFooterNote,
+
+      items:
+        quote.items.length > 0
+          ? quote.items.map((item: QuoteItem) => ({
+              description: item.description,
+              unitPrice: Number(item.unitPrice),
+              quantity: Number(item.quantity),
+              total: Number(item.unitPrice) * Number(item.quantity),
+            }))
+          : undefined,
+
+      installments:
+        quote.installments.length > 0
+          ? quote.installments.map((inst: QuoteInstallment) => ({
+              description: inst.description,
+              amount: resolveInstallmentAmount(
+                {
+                  description: inst.description,
+                  amountType: inst.amountType,
+                  fixedAmount: inst.fixedAmount !== null ? Number(inst.fixedAmount) : undefined,
+                  percentage: inst.percentage !== null ? Number(inst.percentage) : undefined,
+                },
+                finalPrice
+              ),
+              isPaid: inst.isPaid,
+            }))
+          : undefined,
 
       logoBuffer: branding?.useLogoOnQuotes ? logoBuffer : null,
       signatureBuffer,

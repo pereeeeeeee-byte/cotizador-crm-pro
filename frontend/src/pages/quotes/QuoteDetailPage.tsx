@@ -78,6 +78,15 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleToggleInstallment = async (installmentId: string, isPaid: boolean) => {
+    try {
+      await quotesApi.toggleInstallmentPaid(id!, installmentId, isPaid);
+      refresh();
+    } catch {
+      toast.error('No se pudo actualizar el estado de la cuota.');
+    }
+  };
+
   if (isLoading || !quote) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -122,10 +131,25 @@ export default function QuoteDetailPage() {
             <span className="text-ink-500">Descripción</span>
             <p className="mt-1 text-ink-800">{quote.description}</p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-ink-500">Precio base</span>
-            <span className="text-ink-900">{formatCLP(quote.basePrice)}</span>
-          </div>
+
+          {quote.items && quote.items.length > 0 ? (
+            <div className="space-y-1 rounded-lg bg-ink-50 p-3">
+              {quote.items.map((item, i) => (
+                <div key={item.id ?? i} className="flex justify-between text-ink-700">
+                  <span>
+                    {item.description} {item.quantity !== 1 && <span className="text-ink-400">× {item.quantity}</span>}
+                  </span>
+                  <span className="font-medium text-ink-900">{formatCLP(item.unitPrice * item.quantity)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Precio base</span>
+              <span className="text-ink-900">{formatCLP(quote.basePrice)}</span>
+            </div>
+          )}
+
           {Number(quote.discount) > 0 && (
             <div className="flex justify-between">
               <span className="text-ink-500">Descuento</span>
@@ -136,12 +160,39 @@ export default function QuoteDetailPage() {
             <span className="text-ink-900">Total</span>
             <span className="text-brand-600">{formatCLP(quote.finalPrice)}</span>
           </div>
-          {quote.paymentTerms && (
-            <div className="flex justify-between">
+
+          {quote.installments && quote.installments.length > 0 ? (
+            <div className="space-y-1.5 pt-2">
               <span className="text-ink-500">Forma de pago</span>
-              <span className="text-ink-900">{quote.paymentTerms}</span>
+              {quote.installments.map((inst, i) => (
+                <label
+                  key={inst.id ?? i}
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-ink-100 p-2"
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(inst.isPaid)}
+                      onChange={(e) => handleToggleInstallment(inst.id!, e.target.checked)}
+                      className="h-4 w-4 rounded border-ink-300 text-brand-500 focus:ring-brand-400"
+                    />
+                    <span className={inst.isPaid ? 'text-ink-400 line-through' : 'text-ink-700'}>
+                      {i + 1}. {inst.description}
+                    </span>
+                  </span>
+                  <span className="font-medium text-ink-900">{formatCLP(inst.amount ?? 0)}</span>
+                </label>
+              ))}
             </div>
+          ) : (
+            quote.paymentTerms && (
+              <div className="flex justify-between">
+                <span className="text-ink-500">Forma de pago</span>
+                <span className="text-ink-900">{quote.paymentTerms}</span>
+              </div>
+            )
           )}
+
           {quote.validUntil && (
             <div className="flex justify-between">
               <span className="text-ink-500">Vigencia</span>

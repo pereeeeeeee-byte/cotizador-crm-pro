@@ -103,6 +103,25 @@ export interface Service {
   isActive: boolean;
 }
 
+export type InstallmentAmountType = 'FIXED' | 'PERCENTAGE';
+
+export interface QuoteItem {
+  id?: string;
+  description: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+export interface QuoteInstallment {
+  id?: string;
+  description: string;
+  amountType: InstallmentAmountType;
+  fixedAmount?: number | null;
+  percentage?: number | null;
+  isPaid?: boolean;
+  amount?: number; // calculado por el backend al consultar (no se envía)
+}
+
 export interface Quote {
   id: string;
   number: number;
@@ -119,6 +138,8 @@ export interface Quote {
   status: QuoteStatus;
   pdfUrl?: string | null;
   createdAt: string;
+  items?: QuoteItem[];
+  installments?: QuoteInstallment[];
 }
 
 export interface Activity {
