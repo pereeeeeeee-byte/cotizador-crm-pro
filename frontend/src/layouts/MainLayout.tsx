@@ -67,15 +67,15 @@ export default function MainLayout() {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-30 w-64 transform bg-ink-900 transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-30 w-64 transform bg-navy-800 transition-transform lg:static lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex h-16 items-center gap-2 px-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-400">
-            <span className="text-sm font-bold text-ink-900">C</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-400/40 bg-navy-900">
+            <span className="text-sm font-bold text-brand-400">Q</span>
           </div>
-          <span className="text-base font-bold text-white">Cotizador CRM</span>
+          <span className="text-base font-bold text-white">Quotia</span>
           <button onClick={() => setSidebarOpen(false)} className="ml-auto text-ink-400 lg:hidden">
             <X size={20} />
           </button>

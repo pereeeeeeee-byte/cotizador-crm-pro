@@ -139,7 +139,7 @@ export default function QuoteDetailPage() {
                   <span>
                     {item.description} {item.quantity !== 1 && <span className="text-ink-400">× {item.quantity}</span>}
                   </span>
-                  <span className="font-medium text-ink-900">{formatCLP(item.unitPrice * item.quantity)}</span>
+                  <span className="font-medium text-ink-900">{formatCLP(Number(item.unitPrice) * Number(item.quantity))}</span>
                 </div>
               ))}
             </div>

@@ -1,4 +1,4 @@
-package cl.dctopografia.cotizadorcrm;
+package cl.quotia.app;
 
 import com.getcapacitor.BridgeActivity;
 

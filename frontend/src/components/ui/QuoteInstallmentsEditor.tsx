@@ -13,8 +13,8 @@ function formatCLP(value: number) {
 }
 
 function resolveAmount(inst: QuoteInstallment, total: number): number {
-  if (inst.amountType === 'FIXED') return inst.fixedAmount ?? 0;
-  return Math.round((total * (inst.percentage ?? 0)) / 100);
+  if (inst.amountType === 'FIXED') return Number(inst.fixedAmount ?? 0);
+  return Math.round((total * Number(inst.percentage ?? 0)) / 100);
 }
 
 /**

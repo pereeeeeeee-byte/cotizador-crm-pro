@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'cl.dctopografia.cotizadorcrm',
-  appName: 'Cotizador CRM Pro',
+  appId: 'cl.quotia.app',
+  appName: 'Quotia',
   webDir: 'dist',
   // Modo empaquetado offline: todo el HTML/CSS/JS de dist/ se copia dentro
   // del APK (carpeta android/app/src/main/assets/public). La app abre sin

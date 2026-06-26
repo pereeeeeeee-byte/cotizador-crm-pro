@@ -4,7 +4,7 @@ export const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Cotizador CRM Pro API',
+      title: 'Quotia API',
       version: '1.0.0',
       description:
         'API REST multi-tenant para gestión de clientes, cotizaciones y seguimiento comercial para profesionales independientes (topógrafos, arquitectos, constructores, ingenieros).',

@@ -5,17 +5,34 @@ export default {
   theme: {
     extend: {
       colors: {
+        // "brand" = cobre/dorado, el acento de la marca Quotia.
+        // Antes era amarillo brillante; se reemplaza por un tono cobre
+        // cálido y elegante, coherente con la paleta azul marino + cobre.
         brand: {
-          50: '#fefce8',
-          100: '#fef9c3',
-          200: '#fef08a',
-          300: '#fde047',
-          400: '#facc15',
-          500: '#eab308',
-          600: '#ca8a04',
-          700: '#a16207',
-          800: '#854d0e',
-          900: '#713f12',
+          50: '#fbf3e9',
+          100: '#f5e3cc',
+          200: '#e9c89a',
+          300: '#dcab68',
+          400: '#c08a4e', // acento principal
+          500: '#a8743d',
+          600: '#8c5f30',
+          700: '#6f4a26',
+          800: '#54381c',
+          900: '#3c2813',
+        },
+        // "navy" = azul marino, el color base/serio de la marca.
+        navy: {
+          50: '#eef2f6',
+          100: '#d8e1ea',
+          200: '#b1c3d5',
+          300: '#82a0bb',
+          400: '#4f7596',
+          500: '#2c5170',
+          600: '#1c3a54',
+          700: '#142c40',
+          800: '#0f2942',
+          900: '#0a1c2e',
+          950: '#060f1a',
         },
         ink: {
           50: '#f9fafb',

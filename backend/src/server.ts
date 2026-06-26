@@ -9,7 +9,7 @@ async function main() {
 
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
-    console.log(`🚀 Cotizador CRM Pro API corriendo en http://localhost:${env.port}`);
+    console.log(`🚀 Quotia API corriendo en http://localhost:${env.port}`);
     // eslint-disable-next-line no-console
     console.log(`📄 Documentación Swagger en http://localhost:${env.port}/api/docs`);
   });

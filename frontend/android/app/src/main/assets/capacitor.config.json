@@ -1,6 +1,6 @@
 {
-	"appId": "cl.dctopografia.cotizadorcrm",
-	"appName": "Cotizador CRM Pro",
+	"appId": "cl.quotia.app",
+	"appName": "Quotia",
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https"

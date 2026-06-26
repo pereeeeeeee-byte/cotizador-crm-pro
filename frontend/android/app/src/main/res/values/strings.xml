@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Cotizador CRM Pro</string>
-    <string name="title_activity_main">Cotizador CRM Pro</string>
-    <string name="package_name">cl.dctopografia.cotizadorcrm</string>
-    <string name="custom_url_scheme">cl.dctopografia.cotizadorcrm</string>
+    <string name="app_name">Quotia</string>
+    <string name="title_activity_main">Quotia</string>
+    <string name="package_name">cl.quotia.app</string>
+    <string name="custom_url_scheme">cl.quotia.app</string>
 </resources>

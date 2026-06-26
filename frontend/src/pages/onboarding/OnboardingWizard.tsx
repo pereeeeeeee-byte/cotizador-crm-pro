@@ -90,7 +90,7 @@ export default function OnboardingWizard() {
         await organizationApi.onboardingStep4(usagePrefs);
         await organizationApi.finishOnboarding();
         await queryClient.invalidateQueries({ queryKey: ['me'] });
-        toast.success('¡Todo listo! Bienvenido a Cotizador CRM Pro.');
+        toast.success('¡Todo listo! Bienvenido a Quotia.');
         navigate('/dashboard');
         return;
       }

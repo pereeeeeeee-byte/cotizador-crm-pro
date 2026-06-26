@@ -30,7 +30,7 @@ export function QuoteItemsTable({ items, onChange }: Props) {
     onChange(items.filter((_, i) => i !== index));
   };
 
-  const total = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + Number(item.unitPrice) * Number(item.quantity), 0);
 
   return (
     <div className="space-y-2">

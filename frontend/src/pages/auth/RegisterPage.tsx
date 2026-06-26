@@ -43,11 +43,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-950 px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-navy-900 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-400">
-            <span className="text-2xl font-bold text-ink-900">C</span>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-800">
+            <span className="text-2xl font-bold text-brand-400">Q</span>
           </div>
           <h1 className="text-2xl font-bold text-white">Crea tu cuenta</h1>
           <p className="mt-1 text-sm text-ink-400">14 días de prueba gratis, sin tarjeta</p>

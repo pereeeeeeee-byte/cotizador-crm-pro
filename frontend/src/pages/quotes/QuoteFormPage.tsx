@@ -74,7 +74,13 @@ export default function QuoteFormPage() {
 
         if (quote.items && quote.items.length > 0) {
           setPricingMode('items');
-          setItems(quote.items.map((i: QuoteItem) => ({ description: i.description, unitPrice: i.unitPrice, quantity: i.quantity })));
+          setItems(
+            quote.items.map((i: QuoteItem) => ({
+              description: i.description,
+              unitPrice: Number(i.unitPrice),
+              quantity: Number(i.quantity),
+            }))
+          );
         }
 
         if (quote.installments && quote.installments.length > 0) {
@@ -83,8 +89,8 @@ export default function QuoteFormPage() {
             quote.installments.map((inst: QuoteInstallment) => ({
               description: inst.description,
               amountType: inst.amountType,
-              fixedAmount: inst.fixedAmount,
-              percentage: inst.percentage,
+              fixedAmount: inst.fixedAmount !== null && inst.fixedAmount !== undefined ? Number(inst.fixedAmount) : undefined,
+              percentage: inst.percentage !== null && inst.percentage !== undefined ? Number(inst.percentage) : undefined,
             }))
           );
         }

@@ -23,7 +23,7 @@ export const MailService = {
     const link = `${env.frontendUrl}/verificar-correo?token=${token}`;
     await send(
       to,
-      'Verifica tu correo - Cotizador CRM Pro',
+      'Verifica tu correo - Quotia',
       `<p>Hola,</p><p>Confirma tu correo haciendo clic en el siguiente enlace:</p><p><a href="${link}">${link}</a></p>`
     );
   },
@@ -32,7 +32,7 @@ export const MailService = {
     const link = `${env.frontendUrl}/restablecer-password?token=${token}`;
     await send(
       to,
-      'Recupera tu contraseña - Cotizador CRM Pro',
+      'Recupera tu contraseña - Quotia',
       `<p>Hola,</p><p>Recibimos una solicitud para restablecer tu contraseña. Si fuiste tú, haz clic aquí:</p><p><a href="${link}">${link}</a></p><p>Si no fuiste tú, ignora este correo.</p>`
     );
   },

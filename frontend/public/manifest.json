@@ -1,11 +1,11 @@
 {
-  "name": "Cotizador CRM Pro",
-  "short_name": "Cotizador CRM",
-  "description": "Gestiona clientes, cotizaciones y seguimiento comercial desde cualquier dispositivo.",
+  "name": "Quotia",
+  "short_name": "Quotia",
+  "description": "Crea cotizaciones profesionales, gestiona clientes y haz seguimiento comercial desde cualquier dispositivo.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0a0a0c",
-  "theme_color": "#facc15",
+  "background_color": "#0f2942",
+  "theme_color": "#0f2942",
   "icons": [
     {
       "src": "/favicon.svg",
