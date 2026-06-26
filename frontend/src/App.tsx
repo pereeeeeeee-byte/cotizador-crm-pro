@@ -55,6 +55,7 @@ export default function App() {
                 <Route path="/clientes/:id" element={<ClientDetailPage />} />
                 <Route path="/cotizaciones" element={<QuotesListPage />} />
                 <Route path="/cotizaciones/nueva" element={<QuoteFormPage />} />
+                <Route path="/cotizaciones/:id/editar" element={<QuoteFormPage />} />
                 <Route path="/cotizaciones/:id" element={<QuoteDetailPage />} />
                 <Route path="/servicios" element={<ServicesPage />} />
                 <Route path="/configuracion" element={<SettingsPage />} />

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Download, MessageCircle, Copy, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Download, MessageCircle, Copy, Trash2, FileText, Pencil } from 'lucide-react';
 import { quotesApi } from '@/api/resources.api';
 import { Quote, QuoteStatus } from '@/types';
 import { QuoteStatusBadge } from '@/components/ui/StatusBadge';
@@ -34,8 +34,8 @@ export default function QuoteDetailPage() {
       const { pdfUrl } = await quotesApi.generatePdf(id!);
       window.open(pdfUrl, '_blank');
       refresh();
-    } catch {
-      toast.error('No se pudo generar el PDF.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message ?? 'No se pudo generar el PDF.', { duration: 6000 });
     } finally {
       setGeneratingPdf(false);
     }
@@ -205,6 +205,11 @@ export default function QuoteDetailPage() {
       <div className="card">
         <h3 className="mb-3 text-sm font-semibold text-ink-700">Acciones</h3>
         <div className="flex flex-wrap gap-2">
+          {quote.status === 'BORRADOR' && (
+            <button onClick={() => navigate(`/cotizaciones/${quote.id}/editar`)} className="btn-secondary text-sm">
+              <Pencil size={14} /> Editar
+            </button>
+          )}
           <button onClick={handleGeneratePdf} disabled={generatingPdf} className="btn-primary text-sm">
             {generatingPdf ? <Spinner size={14} /> : <FileText size={14} />}
             {quote.pdfUrl ? 'Regenerar PDF' : 'Generar PDF'}

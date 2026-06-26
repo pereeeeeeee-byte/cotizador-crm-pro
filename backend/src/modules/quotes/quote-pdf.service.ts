@@ -62,64 +62,76 @@ export class QuotePdfService {
 
     const finalPrice = Number(quote.finalPrice);
 
-    const pdfBytes = await generateQuotePdf({
-      quoteNumber: quote.number,
-      quotePrefix: branding?.quotePrefix ?? 'COT',
-      date: quote.createdAt,
-      organizationName: organization.name,
-      responsibleName: branding?.responsibleName,
-      jobTitle: branding?.jobTitle,
-      rut: branding?.rut,
-      contactPhone: branding?.phone,
-      contactEmail: branding?.email,
-      primaryColorHex: branding?.primaryColor,
+    let pdfBytes: Uint8Array;
+    try {
+      pdfBytes = await generateQuotePdf({
+        quoteNumber: quote.number,
+        quotePrefix: branding?.quotePrefix ?? 'COT',
+        date: quote.createdAt,
+        organizationName: organization.name,
+        responsibleName: branding?.responsibleName,
+        jobTitle: branding?.jobTitle,
+        rut: branding?.rut,
+        contactPhone: branding?.phone,
+        contactEmail: branding?.email,
+        primaryColorHex: branding?.primaryColor,
 
-      clientName: quote.client.fullName,
-      clientPhone: quote.client.phone,
-      clientEmail: quote.client.email,
-      clientAddress: quote.client.address,
+        clientName: quote.client.fullName,
+        clientPhone: quote.client.phone,
+        clientEmail: quote.client.email,
+        clientAddress: quote.client.address,
 
-      serviceName: quote.service?.name,
-      description: quote.description,
-      basePrice: Number(quote.basePrice),
-      discount: Number(quote.discount),
-      finalPrice,
-      paymentTerms: quote.paymentTerms,
-      validUntil: quote.validUntil,
-      currency: branding?.currency ?? 'CLP',
-      footerNote: branding?.pdfFooterNote,
+        serviceName: quote.service?.name,
+        description: quote.description,
+        basePrice: Number(quote.basePrice),
+        discount: Number(quote.discount),
+        finalPrice,
+        paymentTerms: quote.paymentTerms,
+        validUntil: quote.validUntil,
+        currency: branding?.currency ?? 'CLP',
+        footerNote: branding?.pdfFooterNote,
 
-      items:
-        quote.items.length > 0
-          ? quote.items.map((item: QuoteItem) => ({
-              description: item.description,
-              unitPrice: Number(item.unitPrice),
-              quantity: Number(item.quantity),
-              total: Number(item.unitPrice) * Number(item.quantity),
-            }))
-          : undefined,
+        items:
+          quote.items.length > 0
+            ? quote.items.map((item: QuoteItem) => ({
+                description: item.description,
+                unitPrice: Number(item.unitPrice),
+                quantity: Number(item.quantity),
+                total: Number(item.unitPrice) * Number(item.quantity),
+              }))
+            : undefined,
 
       installments:
-        quote.installments.length > 0
-          ? quote.installments.map((inst: QuoteInstallment) => ({
-              description: inst.description,
-              amount: resolveInstallmentAmount(
-                {
-                  description: inst.description,
-                  amountType: inst.amountType,
-                  fixedAmount: inst.fixedAmount !== null ? Number(inst.fixedAmount) : undefined,
-                  percentage: inst.percentage !== null ? Number(inst.percentage) : undefined,
-                },
-                finalPrice
-              ),
-              isPaid: inst.isPaid,
-            }))
-          : undefined,
+          quote.installments.length > 0
+            ? quote.installments.map((inst: QuoteInstallment) => ({
+                description: inst.description,
+                amount: resolveInstallmentAmount(
+                  {
+                    description: inst.description,
+                    amountType: inst.amountType,
+                    fixedAmount: inst.fixedAmount !== null ? Number(inst.fixedAmount) : undefined,
+                    percentage: inst.percentage !== null ? Number(inst.percentage) : undefined,
+                  },
+                  finalPrice
+                ),
+                isPaid: inst.isPaid,
+              }))
+            : undefined,
 
-      logoBuffer: branding?.useLogoOnQuotes ? logoBuffer : null,
-      signatureBuffer,
-      useSignature,
-    });
+        logoBuffer: branding?.useLogoOnQuotes ? logoBuffer : null,
+        signatureBuffer,
+        useSignature,
+      });
+    } catch (err) {
+      // Logueamos el error completo (mensaje + stack) en los logs del
+      // servidor para poder diagnosticar fallas de generación de PDF sin
+      // depender de reproducir el bug en vivo. El mensaje que ve el usuario
+      // queda más específico que un genérico "no se pudo generar el PDF".
+      // eslint-disable-next-line no-console
+      console.error(`[QuotePdfService] Error generando PDF para cotización ${quote.number} (orgId=${organizationId}):`, err);
+      const detail = err instanceof Error ? err.message : 'Error desconocido';
+      throw AppError.internal(`No se pudo generar el PDF: ${detail}`);
+    }
 
     const url = await StorageService.saveFile(
       { buffer: Buffer.from(pdfBytes), originalName: `cotizacion-${quote.number}.pdf`, mimeType: 'application/pdf' },

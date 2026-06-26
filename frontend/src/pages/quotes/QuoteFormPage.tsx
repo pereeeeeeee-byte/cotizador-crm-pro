@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Sparkles, ArrowLeft } from 'lucide-react';
@@ -19,12 +19,15 @@ type PricingMode = 'simple' | 'items';
 
 export default function QuoteFormPage() {
   const navigate = useNavigate();
+  const { id: editingId } = useParams<{ id: string }>();
+  const isEditMode = Boolean(editingId);
   const [searchParams] = useSearchParams();
   const preselectedClientId = searchParams.get('clientId') ?? '';
 
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiConfidence, setAiConfidence] = useState<string | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(isEditMode);
 
   const [pricingMode, setPricingMode] = useState<PricingMode>('simple');
   const [useInstallments, setUseInstallments] = useState(false);
@@ -42,6 +45,56 @@ export default function QuoteFormPage() {
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [installments, setInstallments] = useState<QuoteInstallment[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // En modo edición, cargamos la cotización existente y precargamos el formulario.
+  // El backend ya rechaza la edición si la cotización no está en BORRADOR, pero
+  // además bloqueamos aquí para no dejar que el usuario llegue a un formulario
+  // editable de algo que ya está cerrado.
+  useEffect(() => {
+    if (!editingId) return;
+    quotesApi
+      .getById(editingId)
+      .then((quote) => {
+        if (quote.status !== 'BORRADOR') {
+          toast.error('Esta cotización ya fue enviada y no se puede modificar. Puedes duplicarla para crear una nueva versión.');
+          navigate(`/cotizaciones/${editingId}`);
+          return;
+        }
+
+        setForm({
+          clientId: quote.clientId,
+          serviceId: quote.serviceId ?? '',
+          description: quote.description,
+          basePrice: quote.basePrice,
+          discount: quote.discount,
+          paymentTerms: quote.paymentTerms ?? '50% al iniciar, 50% al finalizar',
+          validUntil: quote.validUntil ? quote.validUntil.slice(0, 10) : '',
+          status: 'BORRADOR',
+        });
+
+        if (quote.items && quote.items.length > 0) {
+          setPricingMode('items');
+          setItems(quote.items.map((i: QuoteItem) => ({ description: i.description, unitPrice: i.unitPrice, quantity: i.quantity })));
+        }
+
+        if (quote.installments && quote.installments.length > 0) {
+          setUseInstallments(true);
+          setInstallments(
+            quote.installments.map((inst: QuoteInstallment) => ({
+              description: inst.description,
+              amountType: inst.amountType,
+              fixedAmount: inst.fixedAmount,
+              percentage: inst.percentage,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        toast.error('No se pudo cargar la cotización.');
+        navigate('/cotizaciones');
+      })
+      .finally(() => setLoadingQuote(false));
+  }, [editingId, navigate]);
 
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['clients-all-light'],
@@ -98,7 +151,7 @@ export default function QuoteFormPage() {
 
     setSaving(true);
     try {
-      const quote = await quotesApi.create({
+      const payload = {
         clientId: form.clientId,
         serviceId: form.serviceId || undefined,
         description: form.description,
@@ -107,16 +160,27 @@ export default function QuoteFormPage() {
         validUntil: form.validUntil || undefined,
         status: form.status,
         ...(pricingMode === 'items' ? { items } : { basePrice: Number(form.basePrice) }),
-        ...(useInstallments && installments.length > 0 ? { installments } : {}),
-      });
-      toast.success('Cotización creada.');
+        ...(useInstallments && installments.length > 0 ? { installments } : { installments: [] }),
+      };
+
+      const quote = isEditMode ? await quotesApi.update(editingId!, payload) : await quotesApi.create(payload);
+
+      toast.success(isEditMode ? 'Cotización actualizada.' : 'Cotización creada.');
       navigate(`/cotizaciones/${quote.id}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error?.message ?? 'No se pudo crear la cotización.');
+      toast.error(err?.response?.data?.error?.message ?? 'No se pudo guardar la cotización.');
     } finally {
       setSaving(false);
     }
   };
+
+  if (loadingQuote) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size={28} className="text-brand-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -125,8 +189,10 @@ export default function QuoteFormPage() {
       </button>
 
       <div>
-        <h1 className="text-2xl font-bold text-ink-900">Nueva cotización</h1>
-        <p className="text-sm text-ink-500">Genera una cotización profesional en menos de un minuto</p>
+        <h1 className="text-2xl font-bold text-ink-900">{isEditMode ? 'Editar cotización' : 'Nueva cotización'}</h1>
+        <p className="text-sm text-ink-500">
+          {isEditMode ? 'Solo puedes editar cotizaciones en estado Borrador' : 'Genera una cotización profesional en menos de un minuto'}
+        </p>
       </div>
 
       <div className="card border-2 border-brand-100 bg-brand-50/40">
@@ -295,7 +361,7 @@ export default function QuoteFormPage() {
           </button>
           <button type="submit" disabled={saving} className="btn-primary">
             {saving && <Spinner size={16} />}
-            Crear cotización
+            {isEditMode ? 'Guardar cambios' : 'Crear cotización'}
           </button>
         </div>
       </form>

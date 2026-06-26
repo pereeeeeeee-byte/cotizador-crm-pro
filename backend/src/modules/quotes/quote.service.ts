@@ -184,6 +184,20 @@ export class QuoteService {
     const existing = await prisma.quote.findFirst({ where: { id, organizationId }, include: { items: true } });
     if (!existing) throw AppError.notFound('Cotización no encontrada.');
 
+    // Una cotización solo es editable en su contenido (cliente, servicio,
+    // descripción, ítems, cuotas, precios) mientras está en estado BORRADOR.
+    // Una vez que pasa a ENVIADA (o cualquier otro estado), queda "cerrada":
+    // ya no se puede modificar nada salvo, eventualmente, marcar cuotas como
+    // pagadas (que tiene su propio endpoint dedicado). Esto evita que el
+    // contenido de una cotización cambie después de haber sido compartida
+    // con el cliente.
+    const isContentChange = Object.keys(input).some((key) => key !== 'status');
+    if (existing.status !== 'BORRADOR' && isContentChange) {
+      throw AppError.badRequest(
+        'Esta cotización ya fue enviada y no se puede modificar. Si necesitas cambios, duplícala para crear una nueva versión.'
+      );
+    }
+
     const willUseItems = input.items !== undefined ? input.items.length > 0 : existing.items.length > 0;
 
     const basePrice = willUseItems
