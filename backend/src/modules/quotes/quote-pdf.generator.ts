@@ -71,6 +71,25 @@ function formatCurrency(value: number, currency: string): string {
 }
 
 /**
+ * Limpia un texto antes de dibujarlo con pdf-lib. La fuente estándar
+ * (WinAnsi) no puede codificar saltos de línea ni otros caracteres de
+ * control dentro de una sola llamada a drawText — si el usuario pegó un
+ * texto con Enter dentro de un campo de una sola línea (ej. la descripción
+ * de un ítem), el salto de línea queda incrustado y pdf-lib lanza un error
+ * ("WinAnsi cannot encode...") en vez de ignorarlo. Reemplazamos cualquier
+ * salto de línea por un espacio y quitamos otros caracteres de control,
+ * dejando el resto del texto intacto (tildes, ñ, etc. sí son soportados).
+ */
+function sanitizeText(text: string): string {
+  return text
+    .replace(/\r\n|\r|\n/g, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Encapsula el estado de "dónde estamos dibujando" a través de posiblemente
  * varias páginas. Cada llamada a ensureSpace() chequea si queda espacio
  * suficiente antes de la siguiente línea; si no, crea una página nueva y
@@ -104,9 +123,58 @@ class PdfCursor {
       this.drawAccentStripe();
     }
   }
+
+  /**
+   * Dibuja texto con manejo seguro de errores de codificación. Aunque el
+   * texto ya pasó por sanitizeText() antes de llegar aquí, esta es una
+   * última línea de defensa: si por algún motivo quedó un carácter que
+   * WinAnsi no puede codificar (emoji, símbolo exótico, etc.), se omite ese
+   * texto puntual en vez de hacer fallar la generación completa del PDF.
+   */
+  drawTextSafe(text: string, options: Parameters<PDFPage['drawText']>[1]) {
+    try {
+      this.page.drawText(text, options);
+    } catch {
+      try {
+        // Reintento quitando cualquier carácter no-ASCII básico como último recurso
+        // eslint-disable-next-line no-control-regex
+        const fallback = text.replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü¿¡€$%.,:;()\-/]/g, '');
+        this.page.drawText(fallback, options);
+      } catch {
+        // Si incluso el fallback falla, omitimos el texto silenciosamente
+        // en vez de romper todo el documento.
+      }
+    }
+  }
 }
 
-export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> {
+export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Array> {
+  // Saneamos TODOS los campos de texto que vienen de datos del usuario (no
+  // los textos fijos como "CLIENTE", "DETALLE", que ya son seguros) en un
+  // solo punto, antes de cualquier dibujo. Esto evita que un salto de línea
+  // pegado accidentalmente en cualquier campo (descripción de la cotización,
+  // de un ítem, de una cuota, dirección del cliente, etc.) rompa la
+  // generación completa del PDF.
+  const data: QuotePdfData = {
+    ...rawData,
+    organizationName: sanitizeText(rawData.organizationName),
+    responsibleName: rawData.responsibleName ? sanitizeText(rawData.responsibleName) : rawData.responsibleName,
+    jobTitle: rawData.jobTitle ? sanitizeText(rawData.jobTitle) : rawData.jobTitle,
+    rut: rawData.rut ? sanitizeText(rawData.rut) : rawData.rut,
+    contactPhone: rawData.contactPhone ? sanitizeText(rawData.contactPhone) : rawData.contactPhone,
+    contactEmail: rawData.contactEmail ? sanitizeText(rawData.contactEmail) : rawData.contactEmail,
+    clientName: sanitizeText(rawData.clientName),
+    clientPhone: rawData.clientPhone ? sanitizeText(rawData.clientPhone) : rawData.clientPhone,
+    clientEmail: rawData.clientEmail ? sanitizeText(rawData.clientEmail) : rawData.clientEmail,
+    clientAddress: rawData.clientAddress ? sanitizeText(rawData.clientAddress) : rawData.clientAddress,
+    serviceName: rawData.serviceName ? sanitizeText(rawData.serviceName) : rawData.serviceName,
+    description: sanitizeText(rawData.description),
+    paymentTerms: rawData.paymentTerms ? sanitizeText(rawData.paymentTerms) : rawData.paymentTerms,
+    footerNote: rawData.footerNote ? sanitizeText(rawData.footerNote) : rawData.footerNote,
+    items: rawData.items?.map((item) => ({ ...item, description: sanitizeText(item.description) })),
+    installments: rawData.installments?.map((inst) => ({ ...inst, description: sanitizeText(inst.description) })),
+  };
+
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -143,10 +211,10 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   }
 
   let headerY = logoHeight > 0 ? PAGE_HEIGHT - 45 - logoHeight / 2 + 18 : cursor.y;
-  cursor.page.drawText(data.organizationName, { x: HEADER_TEXT_X, y: headerY, size: 16, font: fontBold, color: dark });
+  cursor.drawTextSafe(data.organizationName, { x: HEADER_TEXT_X, y: headerY, size: 16, font: fontBold, color: dark });
   headerY -= 18;
   if (data.responsibleName) {
-    cursor.page.drawText(`${data.responsibleName}${data.jobTitle ? ' · ' + data.jobTitle : ''}`, {
+    cursor.drawTextSafe(`${data.responsibleName}${data.jobTitle ? ' · ' + data.jobTitle : ''}`, {
       x: HEADER_TEXT_X,
       y: headerY,
       size: 10,
@@ -157,7 +225,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   }
   const contactLine = [data.contactPhone, data.contactEmail].filter(Boolean).join('  ·  ');
   if (contactLine) {
-    cursor.page.drawText(contactLine, { x: HEADER_TEXT_X, y: headerY, size: 10, font: fontRegular, color: gray });
+    cursor.drawTextSafe(contactLine, { x: HEADER_TEXT_X, y: headerY, size: 10, font: fontRegular, color: gray });
   }
 
   cursor.y = PAGE_HEIGHT - Math.max(140, 50 + logoHeight + 20);
@@ -171,8 +239,8 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
 
   // --- Título cotización ---
   const quoteCode = `${data.quotePrefix}-${String(data.quoteNumber).padStart(5, '0')}`;
-  cursor.page.drawText('COTIZACIÓN', { x: MARGIN_X, y: cursor.y, size: 20, font: fontBold, color: dark });
-  cursor.page.drawText(quoteCode, {
+  cursor.drawTextSafe('COTIZACIÓN', { x: MARGIN_X, y: cursor.y, size: 20, font: fontBold, color: dark });
+  cursor.drawTextSafe(quoteCode, {
     x: PAGE_WIDTH - 200,
     y: cursor.y,
     size: 14,
@@ -180,7 +248,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
     color: accent,
   });
   cursor.y -= 18;
-  cursor.page.drawText(`Fecha: ${data.date.toLocaleDateString('es-CL')}`, {
+  cursor.drawTextSafe(`Fecha: ${data.date.toLocaleDateString('es-CL')}`, {
     x: PAGE_WIDTH - 200,
     y: cursor.y,
     size: 10,
@@ -190,20 +258,20 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   cursor.y -= 35;
 
   // --- Datos del cliente ---
-  cursor.page.drawText('CLIENTE', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
+  cursor.drawTextSafe('CLIENTE', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
   cursor.y -= 16;
-  cursor.page.drawText(data.clientName, { x: MARGIN_X, y: cursor.y, size: 12, font: fontBold, color: dark });
+  cursor.drawTextSafe(data.clientName, { x: MARGIN_X, y: cursor.y, size: 12, font: fontBold, color: dark });
   cursor.y -= 16;
   if (data.clientPhone) {
-    cursor.page.drawText(`Tel: ${data.clientPhone}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
+    cursor.drawTextSafe(`Tel: ${data.clientPhone}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
     cursor.y -= 14;
   }
   if (data.clientEmail) {
-    cursor.page.drawText(`Correo: ${data.clientEmail}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
+    cursor.drawTextSafe(`Correo: ${data.clientEmail}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
     cursor.y -= 14;
   }
   if (data.clientAddress) {
-    cursor.page.drawText(`Dirección: ${data.clientAddress}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
+    cursor.drawTextSafe(`Dirección: ${data.clientAddress}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
     cursor.y -= 14;
   }
 
@@ -212,14 +280,14 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   // --- Servicio / Descripción ---
   if (data.serviceName) {
     cursor.ensureSpace(40);
-    cursor.page.drawText('SERVICIO', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
+    cursor.drawTextSafe('SERVICIO', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
     cursor.y -= 16;
-    cursor.page.drawText(data.serviceName, { x: MARGIN_X, y: cursor.y, size: 12, font: fontBold, color: dark });
+    cursor.drawTextSafe(data.serviceName, { x: MARGIN_X, y: cursor.y, size: 12, font: fontBold, color: dark });
     cursor.y -= 20;
   }
 
   cursor.ensureSpace(20);
-  cursor.page.drawText('DESCRIPCIÓN', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
+  cursor.drawTextSafe('DESCRIPCIÓN', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
   cursor.y -= 16;
 
   const maxLineWidth = PAGE_WIDTH - 100;
@@ -231,7 +299,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
     const testWidth = fontRegular.widthOfTextAtSize(testLine, descFontSize);
     if (testWidth > maxLineWidth) {
       cursor.ensureSpace(15);
-      cursor.page.drawText(line, { x: MARGIN_X, y: cursor.y, size: descFontSize, font: fontRegular, color: dark });
+      cursor.drawTextSafe(line, { x: MARGIN_X, y: cursor.y, size: descFontSize, font: fontRegular, color: dark });
       cursor.y -= 15;
       line = word;
     } else {
@@ -240,7 +308,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   }
   if (line) {
     cursor.ensureSpace(15);
-    cursor.page.drawText(line, { x: MARGIN_X, y: cursor.y, size: descFontSize, font: fontRegular, color: dark });
+    cursor.drawTextSafe(line, { x: MARGIN_X, y: cursor.y, size: descFontSize, font: fontRegular, color: dark });
     cursor.y -= 15;
   }
 
@@ -249,7 +317,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   // --- Tabla de ítems (si la cotización usa ítems en vez de modo simple) ---
   if (data.items && data.items.length > 0) {
     cursor.ensureSpace(30);
-    cursor.page.drawText('DETALLE', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
+    cursor.drawTextSafe('DETALLE', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
     cursor.y -= 18;
 
     const colDescX = MARGIN_X + 8;
@@ -265,10 +333,10 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
         height: 22,
         color: rgb(0.95, 0.95, 0.95),
       });
-      cursor.page.drawText('Ítem', { x: colDescX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
-      cursor.page.drawText('P. Unitario', { x: colUnitX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
-      cursor.page.drawText('Cant.', { x: colQtyX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
-      cursor.page.drawText('Total', { x: colTotalX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
+      cursor.drawTextSafe('Ítem', { x: colDescX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
+      cursor.drawTextSafe('P. Unitario', { x: colUnitX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
+      cursor.drawTextSafe('Cant.', { x: colQtyX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
+      cursor.drawTextSafe('Total', { x: colTotalX, y: cursor.y, size: 9.5, font: fontBold, color: gray });
       cursor.y -= 22;
     };
 
@@ -301,18 +369,18 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
 
       let lineY = cursor.y;
       for (const l of itemLines) {
-        cursor.page.drawText(l, { x: colDescX, y: lineY, size: 9.5, font: fontRegular, color: dark });
+        cursor.drawTextSafe(l, { x: colDescX, y: lineY, size: 9.5, font: fontRegular, color: dark });
         lineY -= 12;
       }
-      cursor.page.drawText(formatCurrency(item.unitPrice, data.currency), {
+      cursor.drawTextSafe(formatCurrency(item.unitPrice, data.currency), {
         x: colUnitX,
         y: cursor.y,
         size: 9.5,
         font: fontRegular,
         color: dark,
       });
-      cursor.page.drawText(String(item.quantity), { x: colQtyX, y: cursor.y, size: 9.5, font: fontRegular, color: dark });
-      cursor.page.drawText(formatCurrency(item.total, data.currency), {
+      cursor.drawTextSafe(String(item.quantity), { x: colQtyX, y: cursor.y, size: 9.5, font: fontRegular, color: dark });
+      cursor.drawTextSafe(formatCurrency(item.total, data.currency), {
         x: colTotalX,
         y: cursor.y,
         size: 9.5,
@@ -344,8 +412,8 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   cursor.y -= 15;
 
   const drawSummaryRow = (label: string, value: string, bold = false) => {
-    cursor.page.drawText(label, { x: MARGIN_X + 15, y: cursor.y, size: 11, font: fontRegular, color: gray });
-    cursor.page.drawText(value, {
+    cursor.drawTextSafe(label, { x: MARGIN_X + 15, y: cursor.y, size: 11, font: fontRegular, color: gray });
+    cursor.drawTextSafe(value, {
       x: PAGE_WIDTH - 65 - fontBold.widthOfTextAtSize(value, 12),
       y: cursor.y,
       size: bold ? 13 : 11,
@@ -369,15 +437,15 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   // --- Cuotas de pago (si la cotización usa cuotas configurables) ---
   if (data.installments && data.installments.length > 0) {
     cursor.ensureSpace(24 + data.installments.length * 16);
-    cursor.page.drawText('FORMA DE PAGO', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
+    cursor.drawTextSafe('FORMA DE PAGO', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
     cursor.y -= 18;
 
     data.installments.forEach((inst, index) => {
       cursor.ensureSpace(16);
       const label = `${index + 1}. ${inst.description}`;
-      cursor.page.drawText(label, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: dark });
+      cursor.drawTextSafe(label, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: dark });
       const amountText = formatCurrency(inst.amount, data.currency);
-      cursor.page.drawText(amountText, {
+      cursor.drawTextSafe(amountText, {
         x: PAGE_WIDTH - MARGIN_X - fontBold.widthOfTextAtSize(amountText, 10),
         y: cursor.y,
         size: 10,
@@ -389,13 +457,13 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
     cursor.y -= 10;
   } else if (data.paymentTerms) {
     cursor.ensureSpace(16);
-    cursor.page.drawText(`Forma de pago: ${data.paymentTerms}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
+    cursor.drawTextSafe(`Forma de pago: ${data.paymentTerms}`, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: gray });
     cursor.y -= 16;
   }
 
   if (data.validUntil) {
     cursor.ensureSpace(16);
-    cursor.page.drawText(`Vigencia de la cotización: ${data.validUntil.toLocaleDateString('es-CL')}`, {
+    cursor.drawTextSafe(`Vigencia de la cotización: ${data.validUntil.toLocaleDateString('es-CL')}`, {
       x: MARGIN_X,
       y: cursor.y,
       size: 10,
@@ -410,9 +478,17 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
   // haya datos del responsable. Se reserva espacio suficiente para la
   // imagen + línea + hasta 3 líneas de texto; si no cabe en la página
   // actual, se salta a una nueva en vez de solaparse con el footer.
-  const SIGNATURE_BLOCK_HEIGHT = 95;
-  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT + 40);
-  const sigY = Math.min(150, cursor.y - 20);
+  //
+  // IMPORTANTE: ensureSpace garantiza que cursor.y - needed >= 100, pero NO
+  // garantiza que cursor.y quede holgado — puede quedar justo en el mínimo.
+  // Por eso sigY se calcula pidiendo el espacio exacto que el bloque de
+  // firma necesita (constante SIGNATURE_BLOCK_HEIGHT) y luego posicionando
+  // la firma directamente desde cursor.y, en vez de un valor fijo "ideal"
+  // de 150 que podía terminar más abajo que el footer en cotizaciones
+  // largas (muchos ítems o muchas cuotas).
+  const SIGNATURE_BLOCK_HEIGHT = 95; // imagen + línea + hasta 3 líneas de texto
+  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT);
+  const sigY = cursor.y - 15;
 
   if (data.useSignature && data.signatureBuffer) {
     try {
@@ -442,7 +518,7 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
     });
 
     let signatureLineY = sigY - 18;
-    cursor.page.drawText(data.responsibleName ?? data.organizationName, {
+    cursor.drawTextSafe(data.responsibleName ?? data.organizationName, {
       x: MARGIN_X,
       y: signatureLineY,
       size: 9,
@@ -452,17 +528,17 @@ export async function generateQuotePdf(data: QuotePdfData): Promise<Uint8Array> 
 
     if (data.jobTitle) {
       signatureLineY -= 13;
-      cursor.page.drawText(data.jobTitle, { x: MARGIN_X, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
+      cursor.drawTextSafe(data.jobTitle, { x: MARGIN_X, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
     }
 
     if (data.rut) {
       signatureLineY -= 13;
-      cursor.page.drawText(`RUT: ${data.rut}`, { x: MARGIN_X, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
+      cursor.drawTextSafe(`RUT: ${data.rut}`, { x: MARGIN_X, y: signatureLineY, size: 8.5, font: fontRegular, color: gray });
     }
   }
 
   // --- Footer en todas las páginas generadas ---
-  const footerNote = data.footerNote ?? 'Documento generado por Cotizador CRM Pro';
+  const footerNote = data.footerNote ?? 'Documento generado por Quotia';
   const allPages = pdfDoc.getPages();
   for (const page of allPages) {
     page.drawLine({
