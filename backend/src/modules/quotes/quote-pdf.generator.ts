@@ -359,7 +359,7 @@ export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Arra
       }
       if (itemLine) itemLines.push(itemLine);
 
-      const rowHeight = Math.max(18, itemLines.length * 12 + 6);
+      const rowHeight = Math.max(18, itemLines.length * 12 + 4);
       const yBeforeRow = cursor.y;
       cursor.ensureSpace(rowHeight + 4);
       // Si la página cambió (ensureSpace creó una nueva), repetimos el encabezado
@@ -479,16 +479,17 @@ export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Arra
   // imagen + línea + hasta 3 líneas de texto; si no cabe en la página
   // actual, se salta a una nueva en vez de solaparse con el footer.
   //
-  // IMPORTANTE: ensureSpace garantiza que cursor.y - needed >= 100, pero NO
-  // garantiza que cursor.y quede holgado — puede quedar justo en el mínimo.
-  // Por eso sigY se calcula pidiendo el espacio exacto que el bloque de
-  // firma necesita (constante SIGNATURE_BLOCK_HEIGHT) y luego posicionando
-  // la firma directamente desde cursor.y, en vez de un valor fijo "ideal"
-  // de 150 que podía terminar más abajo que el footer en cotizaciones
-  // largas (muchos ítems o muchas cuotas).
+  // Se agrega un margen explícito de separación (SIGNATURE_TOP_MARGIN)
+  // entre el último contenido dibujado (vigencia, forma de pago, etc.) y el
+  // inicio del bloque de firma. Sin este margen, si el cursor queda muy
+  // cerca de sigY, la imagen de la firma (hasta 60pt de alto) puede dibujarse
+  // encima del texto anterior y tapar parte de él — por ejemplo la etiqueta
+  // "Vigencia de la cotización:" quedando oculta bajo la firma dibujada.
   const SIGNATURE_BLOCK_HEIGHT = 95; // imagen + línea + hasta 3 líneas de texto
-  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT);
-  const sigY = cursor.y - 15;
+  const SIGNATURE_TOP_MARGIN = 75; // espacio mínimo entre el contenido previo y la firma
+  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT + SIGNATURE_TOP_MARGIN);
+  cursor.y -= SIGNATURE_TOP_MARGIN;
+  const sigY = cursor.y;
 
   if (data.useSignature && data.signatureBuffer) {
     try {
