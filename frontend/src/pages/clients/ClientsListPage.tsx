@@ -71,8 +71,8 @@ export default function ClientsListPage() {
         </select>
       </div>
 
-      <div className="card overflow-hidden p-0">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto p-0">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-ink-50 text-left text-xs font-semibold uppercase text-ink-500">
             <tr>
               <th className="px-4 py-3">Nombre</th>

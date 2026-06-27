@@ -49,8 +49,13 @@ export class DashboardService {
       }),
     ]);
 
-    const totalDecided = acceptedQuotes + rejectedQuotes;
-    const conversionRate = totalDecided > 0 ? (acceptedQuotes / totalDecided) * 100 : 0;
+    // Conversión = cotizaciones aceptadas / total de cotizaciones emitidas
+    // (incluye Borrador, Enviada, Vencida, etc. en el denominador). Esto es
+    // la métrica estándar de "conversion rate": de todo lo que se cotizó,
+    // qué porcentaje terminó en venta. Antes solo se comparaba contra
+    // Aceptadas + Rechazadas, lo que ignoraba las cotizaciones aún
+    // pendientes de respuesta e inflaba artificialmente el porcentaje.
+    const conversionRate = totalQuotes > 0 ? (acceptedQuotes / totalQuotes) * 100 : 0;
 
     return {
       totalClients,
@@ -91,14 +96,12 @@ export class DashboardService {
     const quotesByMonth: Record<string, number> = {};
     const salesByMonth: Record<string, number> = {};
     const acceptedByMonth: Record<string, number> = {};
-    const totalDecidedByMonth: Record<string, number> = {};
 
     for (const key of keys) {
       clientsByMonth[key] = 0;
       quotesByMonth[key] = 0;
       salesByMonth[key] = 0;
       acceptedByMonth[key] = 0;
-      totalDecidedByMonth[key] = 0;
     }
 
     for (const c of clients) {
@@ -109,9 +112,6 @@ export class DashboardService {
     for (const q of quotes) {
       const key = monthKey(q.createdAt);
       if (key in quotesByMonth) quotesByMonth[key]++;
-      if (['ACEPTADA', 'RECHAZADA'].includes(q.status) && key in totalDecidedByMonth) {
-        totalDecidedByMonth[key]++;
-      }
       if (q.status === 'ACEPTADA' && key in acceptedByMonth) acceptedByMonth[key]++;
     }
 
@@ -120,10 +120,11 @@ export class DashboardService {
       if (key in salesByMonth) salesByMonth[key] += Number(q.finalPrice);
     }
 
+    // Conversión mensual = Aceptadas / Total de cotizaciones emitidas ese
+    // mes (igual criterio que en getSummary — incluye pendientes).
     const conversionByMonth: Record<string, number> = {};
     for (const key of keys) {
-      conversionByMonth[key] =
-        totalDecidedByMonth[key] > 0 ? Math.round((acceptedByMonth[key] / totalDecidedByMonth[key]) * 1000) / 10 : 0;
+      conversionByMonth[key] = quotesByMonth[key] > 0 ? Math.round((acceptedByMonth[key] / quotesByMonth[key]) * 1000) / 10 : 0;
     }
 
     // Servicios más vendidos (cotizaciones aceptadas, agrupadas por servicio)
