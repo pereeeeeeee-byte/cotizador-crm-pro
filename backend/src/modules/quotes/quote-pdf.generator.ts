@@ -485,11 +485,12 @@ export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Arra
   // cerca de sigY, la imagen de la firma (hasta 60pt de alto) puede dibujarse
   // encima del texto anterior y tapar parte de él — por ejemplo la etiqueta
   // "Vigencia de la cotización:" quedando oculta bajo la firma dibujada.
-  const SIGNATURE_BLOCK_HEIGHT = 95; // imagen + línea + hasta 3 líneas de texto
-  const SIGNATURE_TOP_MARGIN = 75; // espacio mínimo entre el contenido previo y la firma
-  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT + SIGNATURE_TOP_MARGIN);
-  cursor.y -= SIGNATURE_TOP_MARGIN;
-  const sigY = cursor.y;
+  const SIGNATURE_BLOCK_HEIGHT = 95;
+const spaceLeft = cursor.y - 100;
+const SIGNATURE_TOP_MARGIN = spaceLeft > 200 ? 30 : 75;
+cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT + SIGNATURE_TOP_MARGIN);
+cursor.y -= SIGNATURE_TOP_MARGIN;
+const sigY = cursor.y;
 
   if (data.useSignature && data.signatureBuffer) {
     try {
