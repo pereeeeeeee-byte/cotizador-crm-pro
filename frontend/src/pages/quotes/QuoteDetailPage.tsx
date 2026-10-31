@@ -7,9 +7,38 @@ import { quotesApi } from '@/api/resources.api';
 import { Quote, QuoteStatus } from '@/types';
 import { QuoteStatusBadge } from '@/components/ui/StatusBadge';
 import { Spinner } from '@/components/ui/Spinner';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 function formatCLP(value: string | number) {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value));
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * En la app Android (APK) el navegador interno no puede compartir archivos:
+ * se guarda el PDF en la caché de la app y se abre el menú nativo de compartir
+ * con ese archivo (ahí se elige WhatsApp). Devuelve false si el usuario cancela.
+ */
+async function shareFileNative(file: File, text: string): Promise<boolean> {
+  const data = await blobToBase64(file);
+  const written = await Filesystem.writeFile({ path: file.name, data, directory: Directory.Cache });
+  try {
+    await Share.share({ text, files: [written.uri], dialogTitle: 'Compartir cotización' });
+    return true;
+  } catch (err: any) {
+    if (/cancel/i.test(String(err?.message ?? err))) return false;
+    throw err;
+  }
 }
 
 const STATUS_OPTIONS: QuoteStatus[] = ['BORRADOR', 'ENVIADA', 'ACEPTADA', 'RECHAZADA', 'VENCIDA'];
@@ -81,7 +110,14 @@ export default function QuoteDetailPage() {
     // En el celular se comparte el archivo PDF con su nombre (COT-xxxxx Cliente.pdf)
     // junto al mensaje: se abre el menú de compartir y ahí se elige WhatsApp.
     const file = await getPdfFile();
-    if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    if (file && Capacitor.isNativePlatform()) {
+      try {
+        await shareFileNative(file, baseText);
+        return;
+      } catch {
+        toast.error('No se pudo compartir el archivo. Se enviará el enlace.');
+      }
+    } else if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], text: baseText });
         return;
@@ -99,6 +135,15 @@ export default function QuoteDetailPage() {
     const file = await getPdfFile();
     if (!file) {
       if (quote?.pdfUrl) window.open(quote.pdfUrl, '_blank');
+      return;
+    }
+    if (Capacitor.isNativePlatform()) {
+      // En la app Android se abre el menú nativo para guardar/enviar el archivo
+      try {
+        await shareFileNative(file, '');
+      } catch {
+        toast.error('No se pudo abrir el archivo.');
+      }
       return;
     }
     const objectUrl = URL.createObjectURL(file);
