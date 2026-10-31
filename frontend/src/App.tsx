@@ -5,7 +5,7 @@ import { Suspense, lazy } from 'react';
 
 import { ProtectedRoute, OnboardingRoute, GuestRoute } from '@/components/ProtectedRoute';
 import MainLayout from '@/layouts/MainLayout';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { SplashScreen } from '@/components/ui/SplashScreen';
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'));
@@ -32,7 +32,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-        <Suspense fallback={<FullPageSpinner />}>
+        <Suspense fallback={<SplashScreen />}>
           <Routes>
             {/* Rutas públicas */}
             <Route element={<GuestRoute />}>

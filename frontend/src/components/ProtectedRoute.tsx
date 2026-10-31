@@ -1,14 +1,14 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { SplashScreen } from '@/components/ui/SplashScreen';
 
 export function ProtectedRoute() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: user, isLoading, isError } = useCurrentUser();
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (isLoading) return <FullPageSpinner />;
+  if (isLoading) return <SplashScreen />;
   if (isError) return <Navigate to="/login" replace />;
 
   if (user && !user.organization.onboardingDone) {
@@ -23,7 +23,7 @@ export function OnboardingRoute() {
   const { data: user, isLoading, isError } = useCurrentUser();
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (isLoading) return <FullPageSpinner />;
+  if (isLoading) return <SplashScreen />;
   if (isError) return <Navigate to="/login" replace />;
 
   if (user && user.organization.onboardingDone) {
