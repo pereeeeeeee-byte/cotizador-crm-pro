@@ -12,6 +12,7 @@ router.patch('/:id', QuoteController.update);
 router.post('/:id/duplicate', QuoteController.duplicate);
 router.delete('/:id', QuoteController.remove);
 router.post('/:id/pdf', QuoteController.generatePdf);
+router.get('/:id/pdf-file', QuoteController.downloadPdf);
 router.patch('/:id/installments/:installmentId', QuoteController.toggleInstallmentPaid);
 
 export default router;

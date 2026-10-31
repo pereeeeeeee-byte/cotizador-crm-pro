@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -43,13 +43,31 @@ export default function QuoteDetailPage() {
 
   const pdfFileName = quote?.pdfFileName ?? `Cotización ${quote?.number ?? ''} ${quote?.client?.fullName ?? ''}.pdf`.replace(/\s+/g, ' ');
 
-  /** Descarga el PDF y lo entrega como archivo con nombre propio (null si no se pudo). */
-  const fetchPdfFile = async (): Promise<File | null> => {
-    if (!quote?.pdfUrl) return null;
+  // El PDF se baja por el servidor (evita bloqueos CORS de Cloudinary) y se deja
+  // listo en memoria: así, al tocar "Compartir", el menú de compartir se abre
+  // al instante (el navegador exige que se abra justo después del toque).
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  useEffect(() => {
+    setPdfFile(null);
+    if (!id || !quote?.pdfUrl) return;
+    let cancelled = false;
+    quotesApi
+      .downloadPdfBlob(id)
+      .then((blob) => {
+        if (!cancelled) setPdfFile(new File([blob], pdfFileName, { type: 'application/pdf' }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [id, quote?.pdfUrl, pdfFileName]);
+
+  /** Entrega el PDF como archivo con nombre propio (null si no se pudo obtener). */
+  const getPdfFile = async (): Promise<File | null> => {
+    if (pdfFile) return pdfFile;
+    if (!id || !quote?.pdfUrl) return null;
     try {
-      const res = await fetch(quote.pdfUrl);
-      if (!res.ok) return null;
-      const blob = await res.blob();
+      const blob = await quotesApi.downloadPdfBlob(id);
       return new File([blob], pdfFileName, { type: 'application/pdf' });
     } catch {
       return null;
@@ -60,9 +78,9 @@ export default function QuoteDetailPage() {
     if (!quote) return;
     const baseText = `Hola ${quote.client?.fullName}, te comparto la cotización N°${quote.number} por ${formatCLP(quote.finalPrice)}.`;
 
-    // En el celular se comparte el archivo PDF con su nombre (COT-xxxxx Cliente.pdf):
-    // se abre el menú de compartir y ahí se elige WhatsApp.
-    const file = await fetchPdfFile();
+    // En el celular se comparte el archivo PDF con su nombre (COT-xxxxx Cliente.pdf)
+    // junto al mensaje: se abre el menú de compartir y ahí se elige WhatsApp.
+    const file = await getPdfFile();
     if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], text: baseText });
@@ -72,13 +90,13 @@ export default function QuoteDetailPage() {
       }
     }
 
-    // Respaldo: mensaje de WhatsApp con el enlace al PDF
+    // Respaldo (navegadores que no pueden compartir archivos): mensaje con el enlace al PDF
     const text = `${baseText}${quote.pdfUrl ? ' ' + quote.pdfUrl : ''}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleDownloadPdf = async () => {
-    const file = await fetchPdfFile();
+    const file = await getPdfFile();
     if (!file) {
       if (quote?.pdfUrl) window.open(quote.pdfUrl, '_blank');
       return;

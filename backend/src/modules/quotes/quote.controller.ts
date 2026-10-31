@@ -56,6 +56,25 @@ export const QuoteController = {
     res.json({ pdfUrl: url });
   }),
 
+  /**
+   * Entrega el PDF ya generado como archivo, con su nombre (COT-xxxxx Cliente.pdf).
+   * Lo descarga el servidor desde el almacenamiento para que el navegador no
+   * dependa de CORS de Cloudinary al compartir el archivo por WhatsApp.
+   */
+  downloadPdf: asyncHandler(async (req: Request, res: Response) => {
+    const auth = requireAuth(req);
+    const quote = await QuoteService.getById(auth.organizationId, req.params.id);
+    if (!quote.pdfUrl) throw AppError.notFound('Esta cotización aún no tiene PDF generado.');
+
+    const upstream = await fetch(quote.pdfUrl);
+    if (!upstream.ok) throw AppError.internal('No se pudo obtener el PDF guardado. Intenta regenerarlo.');
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(quote.pdfFileName)}`);
+    res.send(buffer);
+  }),
+
   toggleInstallmentPaid: asyncHandler(async (req: Request, res: Response) => {
     const auth = requireAuth(req);
     const { isPaid } = req.body as { isPaid: boolean };

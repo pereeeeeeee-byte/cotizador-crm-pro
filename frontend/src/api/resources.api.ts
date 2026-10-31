@@ -25,6 +25,8 @@ export const quotesApi = {
   duplicate: (id: string) => api.post(`/quotes/${id}/duplicate`).then((r) => r.data),
   remove: (id: string) => api.delete(`/quotes/${id}`),
   generatePdf: (id: string) => api.post(`/quotes/${id}/pdf`).then((r) => r.data),
+  downloadPdfBlob: (id: string): Promise<Blob> =>
+    api.get(`/quotes/${id}/pdf-file`, { responseType: 'blob' }).then((r) => r.data),
   toggleInstallmentPaid: (quoteId: string, installmentId: string, isPaid: boolean) =>
     api.patch(`/quotes/${quoteId}/installments/${installmentId}`, { isPaid }).then((r) => r.data),
 };
