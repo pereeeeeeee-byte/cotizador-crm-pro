@@ -3,6 +3,7 @@ import { AppError } from '@/common/AppError';
 import { generateQuotePdf } from './quote-pdf.generator';
 import { StorageService } from '@/modules/uploads/storage.service';
 import { resolveInstallmentAmount } from './quote-calculations';
+import { buildQuoteFileBaseName, slugifyFileName } from './quote-filename';
 import type { QuoteItem, QuoteInstallment } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
@@ -133,8 +134,14 @@ export class QuotePdfService {
       throw AppError.internal(`No se pudo generar el PDF: ${detail}`);
     }
 
+    const fileBaseName = buildQuoteFileBaseName(branding?.quotePrefix, quote.number, quote.client.fullName);
     const url = await StorageService.saveFile(
-      { buffer: Buffer.from(pdfBytes), originalName: `cotizacion-${quote.number}.pdf`, mimeType: 'application/pdf' },
+      {
+        buffer: Buffer.from(pdfBytes),
+        originalName: `${fileBaseName}.pdf`,
+        mimeType: 'application/pdf',
+        publicId: slugifyFileName(fileBaseName),
+      },
       `org-${organizationId}/quotes`
     );
 

@@ -41,10 +41,56 @@ export default function QuoteDetailPage() {
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const pdfFileName = quote?.pdfFileName ?? `Cotización ${quote?.number ?? ''} ${quote?.client?.fullName ?? ''}.pdf`.replace(/\s+/g, ' ');
+
+  /** Descarga el PDF y lo entrega como archivo con nombre propio (null si no se pudo). */
+  const fetchPdfFile = async (): Promise<File | null> => {
+    if (!quote?.pdfUrl) return null;
+    try {
+      const res = await fetch(quote.pdfUrl);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return new File([blob], pdfFileName, { type: 'application/pdf' });
+    } catch {
+      return null;
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
     if (!quote) return;
-    const text = `Hola ${quote.client?.fullName}, te comparto la cotización N°${quote.number} por ${formatCLP(quote.finalPrice)}.${quote.pdfUrl ? ' ' + quote.pdfUrl : ''}`;
+    const baseText = `Hola ${quote.client?.fullName}, te comparto la cotización N°${quote.number} por ${formatCLP(quote.finalPrice)}.`;
+
+    // En el celular se comparte el archivo PDF con su nombre (COT-xxxxx Cliente.pdf):
+    // se abre el menú de compartir y ahí se elige WhatsApp.
+    const file = await fetchPdfFile();
+    if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], text: baseText });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return; // el usuario cerró el menú
+      }
+    }
+
+    // Respaldo: mensaje de WhatsApp con el enlace al PDF
+    const text = `${baseText}${quote.pdfUrl ? ' ' + quote.pdfUrl : ''}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleDownloadPdf = async () => {
+    const file = await fetchPdfFile();
+    if (!file) {
+      if (quote?.pdfUrl) window.open(quote.pdfUrl, '_blank');
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = pdfFileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
   };
 
   const handleStatusChange = async (status: QuoteStatus) => {
@@ -215,9 +261,9 @@ export default function QuoteDetailPage() {
             {quote.pdfUrl ? 'Regenerar PDF' : 'Generar PDF'}
           </button>
           {quote.pdfUrl && (
-            <a href={quote.pdfUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm">
+            <button onClick={handleDownloadPdf} className="btn-secondary text-sm">
               <Download size={14} /> Descargar PDF
-            </a>
+            </button>
           )}
           <button onClick={handleShareWhatsApp} className="btn-secondary text-sm">
             <MessageCircle size={14} /> Compartir WhatsApp

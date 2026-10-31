@@ -10,6 +10,7 @@ import {
   assertInstallmentsMatchTotal,
   resolveInstallmentAmount,
 } from './quote-calculations';
+import { buildQuoteFileBaseName } from './quote-filename';
 
 interface CreateQuoteInput {
   clientId: string;
@@ -177,7 +178,10 @@ export class QuoteService {
       include: { ...QUOTE_INCLUDE_FULL, activities: true, createdBy: { select: { id: true, fullName: true } } },
     });
     if (!quote) throw AppError.notFound('Cotización no encontrada.');
-    return quote;
+    // Nombre con el que se comparte/descarga el PDF, p. ej. "COT-01060 Manuel Caro.pdf"
+    const branding = await prisma.branding.findUnique({ where: { organizationId } });
+    const pdfFileName = `${buildQuoteFileBaseName(branding?.quotePrefix, quote.number, quote.client.fullName)}.pdf`;
+    return { ...quote, pdfFileName };
   }
 
   static async update(organizationId: string, id: string, input: Partial<CreateQuoteInput>) {

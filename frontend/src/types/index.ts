@@ -137,6 +137,8 @@ export interface Quote {
   validUntil?: string | null;
   status: QuoteStatus;
   pdfUrl?: string | null;
+  /** Nombre sugerido para el PDF al compartir/descargar, p. ej. "COT-01060 Manuel Caro.pdf" */
+  pdfFileName?: string;
   createdAt: string;
   items?: QuoteItem[];
   installments?: QuoteInstallment[];

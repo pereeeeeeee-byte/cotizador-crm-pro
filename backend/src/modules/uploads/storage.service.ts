@@ -7,6 +7,8 @@ export interface UploadedFileInfo {
   buffer: Buffer;
   originalName: string;
   mimeType: string;
+  /** Nombre fijo (sin extensión) para el archivo en el almacenamiento; si se omite se usa uno automático. */
+  publicId?: string;
 }
 
 let cloudinaryConfigured = false;
@@ -64,8 +66,12 @@ export class StorageService {
     const result = await cloudinary.uploader.upload(dataUri, {
       folder: `cotizador-crm-pro/${folder}`,
       resource_type: isPdf ? 'raw' : 'image',
-      use_filename: true,
-      unique_filename: true,
+      // Con publicId (p. ej. PDFs de cotización) el archivo conserva un nombre
+      // legible; al regenerar se sobrescribe y la URL nueva trae otra versión,
+      // así que no hay problema de caché.
+      ...(file.publicId
+        ? { public_id: file.publicId, overwrite: true, invalidate: true, use_filename: false, unique_filename: false }
+        : { use_filename: true, unique_filename: true }),
       // Para archivos raw (PDFs), Cloudinary no agrega extensión a la URL
       // por defecto, lo que hace que el navegador/celular no sepa qué tipo
       // de archivo es al descargarlo. Forzamos "format: pdf" para que la
