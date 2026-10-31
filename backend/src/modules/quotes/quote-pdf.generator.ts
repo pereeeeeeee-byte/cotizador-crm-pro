@@ -436,23 +436,43 @@ export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Arra
 
   // --- Cuotas de pago (si la cotización usa cuotas configurables) ---
   if (data.installments && data.installments.length > 0) {
-    cursor.ensureSpace(24 + data.installments.length * 16);
+    cursor.ensureSpace(24 + 16);
     cursor.drawTextSafe('FORMA DE PAGO', { x: MARGIN_X, y: cursor.y, size: 11, font: fontBold, color: gray });
     cursor.y -= 18;
 
     data.installments.forEach((inst, index) => {
-      cursor.ensureSpace(16);
       const label = `${index + 1}. ${inst.description}`;
-      cursor.drawTextSafe(label, { x: MARGIN_X, y: cursor.y, size: 10, font: fontRegular, color: dark });
       const amountText = formatCurrency(inst.amount, data.currency);
+      const amountWidth = fontBold.widthOfTextAtSize(amountText, 10);
+      // El texto se parte en varias líneas para no invadir la columna del monto
+      const labelMaxWidth = PAGE_WIDTH - 2 * MARGIN_X - amountWidth - 14;
+      const labelLines: string[] = [];
+      let labelLine = '';
+      for (const word of label.split(/\s+/)) {
+        const testLine = labelLine ? `${labelLine} ${word}` : word;
+        if (labelLine && fontRegular.widthOfTextAtSize(testLine, 10) > labelMaxWidth) {
+          labelLines.push(labelLine);
+          labelLine = word;
+        } else {
+          labelLine = testLine;
+        }
+      }
+      if (labelLine) labelLines.push(labelLine);
+
+      cursor.ensureSpace(labelLines.length * 12 + 4);
+      let lineY = cursor.y;
+      labelLines.forEach((l) => {
+        cursor.drawTextSafe(l, { x: MARGIN_X, y: lineY, size: 10, font: fontRegular, color: dark });
+        lineY -= 12;
+      });
       cursor.drawTextSafe(amountText, {
-        x: PAGE_WIDTH - MARGIN_X - fontBold.widthOfTextAtSize(amountText, 10),
+        x: PAGE_WIDTH - MARGIN_X - amountWidth,
         y: cursor.y,
         size: 10,
         font: fontBold,
         color: dark,
       });
-      cursor.y -= 16;
+      cursor.y -= Math.max(16, labelLines.length * 12 + 4);
     });
     cursor.y -= 10;
   } else if (data.paymentTerms) {
@@ -485,32 +505,40 @@ export async function generateQuotePdf(rawData: QuotePdfData): Promise<Uint8Arra
   // cerca de sigY, la imagen de la firma (hasta 60pt de alto) puede dibujarse
   // encima del texto anterior y tapar parte de él — por ejemplo la etiqueta
   // "Vigencia de la cotización:" quedando oculta bajo la firma dibujada.
-  // Separación explícita entre contenido y firma
-  cursor.y -= 20;
-
-  const SIGNATURE_BLOCK_HEIGHT = 95;
-  const SIGNATURE_TOP_MARGIN = 30;
-  cursor.ensureSpace(SIGNATURE_BLOCK_HEIGHT + SIGNATURE_TOP_MARGIN);
-  cursor.y -= SIGNATURE_TOP_MARGIN;
-  const sigY = cursor.y;
-
+  // Primero se prepara la imagen para conocer su alto real: el bloque de firma
+  // solo salta de página si de verdad no cabe (antes se reservaba un bloque
+  // fijo y sobrado, y casi siempre se iba a una hoja nueva).
+  let sigImage: Awaited<ReturnType<PDFDocument['embedPng']>> | null = null;
+  let sigW = 0;
+  let sigH = 0;
   if (data.useSignature && data.signatureBuffer) {
     try {
-      let sigImage;
       try {
         sigImage = await pdfDoc.embedPng(data.signatureBuffer);
       } catch {
         sigImage = await pdfDoc.embedJpg(data.signatureBuffer);
       }
-      const sigMaxW = 140;
-      const sigMaxH = 60;
-      const scale = Math.min(sigMaxW / sigImage.width, sigMaxH / sigImage.height, 1);
-      const w = sigImage.width * scale;
-      const h = sigImage.height * scale;
-      cursor.page.drawImage(sigImage, { x: MARGIN_X, y: sigY, width: w, height: h });
+      const scale = Math.min(140 / sigImage.width, 60 / sigImage.height, 1);
+      sigW = sigImage.width * scale;
+      sigH = sigImage.height * scale;
     } catch {
       // Si la firma no se puede decodificar, se omite sin romper el PDF.
+      sigImage = null;
     }
+  }
+
+  // Alto del bloque: separación + imagen + línea y hasta 3 líneas de texto.
+  const SIGNATURE_GAP = 14;
+  const SIGNATURE_TEXT_HEIGHT = 44;
+  const SIGNATURE_BOTTOM_LIMIT = 85; // por encima de la línea del footer (y = 70)
+  const signatureHeight = SIGNATURE_GAP + sigH + SIGNATURE_TEXT_HEIGHT;
+  if (cursor.y - signatureHeight < SIGNATURE_BOTTOM_LIMIT) {
+    cursor.ensureSpace(cursor.y - SIGNATURE_BOTTOM_LIMIT + 1); // fuerza página nueva
+  }
+  const sigY = cursor.y - SIGNATURE_GAP - sigH;
+
+  if (sigImage) {
+    cursor.page.drawImage(sigImage, { x: MARGIN_X, y: sigY, width: sigW, height: sigH });
   }
 
   if (data.responsibleName || data.organizationName) {
