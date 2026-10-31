@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/

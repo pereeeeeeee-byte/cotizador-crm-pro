@@ -10,6 +10,8 @@ import { ClientSearchSelect } from '@/components/ui/ClientSearchSelect';
 import { QuoteItemsTable } from '@/components/ui/QuoteItemsTable';
 import { QuoteInstallmentsEditor } from '@/components/ui/QuoteInstallmentsEditor';
 import clsx from 'clsx';
+import { QuickTemplateLey20898, Ley20898TemplateData } from '@/components/ui/QuickTemplateLey20898';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 function formatCLP(value: number) {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
@@ -23,6 +25,9 @@ export default function QuoteFormPage() {
   const isEditMode = Boolean(editingId);
   const [searchParams] = useSearchParams();
   const preselectedClientId = searchParams.get('clientId') ?? '';
+
+  const { data: currentUser } = useCurrentUser();
+  const userEmail = currentUser?.email;
 
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -46,10 +51,6 @@ export default function QuoteFormPage() {
   const [installments, setInstallments] = useState<QuoteInstallment[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // En modo edición, cargamos la cotización existente y precargamos el formulario.
-  // El backend ya rechaza la edición si la cotización no está en BORRADOR, pero
-  // además bloqueamos aquí para no dejar que el usuario llegue a un formulario
-  // editable de algo que ya está cerrado.
   useEffect(() => {
     if (!editingId) return;
     quotesApi
@@ -221,6 +222,23 @@ export default function QuoteFormPage() {
         {aiConfidence && <p className="mt-2 text-xs text-ink-400">Confianza de la sugerencia: {aiConfidence}</p>}
       </div>
 
+      <QuickTemplateLey20898
+        userEmail={userEmail}
+        onApply={(tpl: Ley20898TemplateData) => {
+          setForm((f) => ({
+            ...f,
+            description: tpl.description,
+            paymentTerms: tpl.paymentTerms,
+            validUntil: tpl.validUntil,
+            basePrice: '',
+          }));
+          setPricingMode('items');
+          setItems(tpl.items);
+          setUseInstallments(true);
+          setInstallments(tpl.installments);
+        }}
+      />
+
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
           <label className="label-field">Cliente *</label>
@@ -256,7 +274,6 @@ export default function QuoteFormPage() {
           />
         </div>
 
-        {/* Selector de modo de precio: simple (un solo monto) o detallado (tabla de ítems) */}
         <div>
           <label className="label-field">¿Cómo quieres cotizar el valor?</label>
           <div className="flex gap-2">
@@ -325,7 +342,6 @@ export default function QuoteFormPage() {
           <span className="text-lg font-bold text-ink-900">{formatCLP(finalPrice)}</span>
         </div>
 
-        {/* Forma de pago: cuotas por hito (opcional) o texto libre */}
         <div className="space-y-3 border-t border-ink-100 pt-4">
           <label className="flex items-center justify-between">
             <span className="label-field mb-0">Pago en cuotas por avance del proyecto</span>
