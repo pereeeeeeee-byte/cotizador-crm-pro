@@ -4,14 +4,32 @@
   "description": "Crea cotizaciones profesionales, gestiona clientes y haz seguimiento comercial desde cualquier dispositivo.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0f2942",
-  "theme_color": "#0f2942",
+  "background_color": "#04172F",
+  "theme_color": "#04172F",
   "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
